@@ -23,6 +23,8 @@ static void codegen_end_function (void);
 static int frame_height;	/* スタックフレームの大きさ */
 static char *funcname;		/* コンパイル中の関数名 */
 
+static int label_num; /* 次に使用するラベル番号を管理 */
+
 static void codegen_global (void);
 static void codegen_global_func (struct Symbol *sym);
 static void codegen_global_var (struct Symbol *sym);
@@ -30,12 +32,15 @@ static void visit_AST (struct AST *ast);
 static void codegen_function_definition (struct AST *ast);
 static void codegen_statement_exp (struct AST *ast);
 static void codegen_compound_statement (struct AST *ast);
-static void codegen_declaration (struct AST *ast);
+static void codegen_statement_while (struct AST *ast);
 static void codegen_expression_id (struct AST *ast);
 static void codegen_expression_intchar (struct AST *ast);
 static void codegen_expression_string (struct AST *ast);
 static void codegen_expression_funcall (struct AST *ast);
 static void codegen_expression_assign (struct AST *ast);
+static void codegen_expression_less (struct AST *ast);
+static void codegen_expression_add (struct AST *ast);
+static void codegen_expression_sub (struct AST *ast);
 static void codegen_argument_expression_list_pair (struct AST *ast);
 
 /* ---------------------------------------------------------------------- */
@@ -137,8 +142,8 @@ visit_AST (struct AST *ast)
     codegen_statement_exp (ast);
   } else if (!strcmp (ast->ast_type, "AST_compound_statement")) {
     codegen_compound_statement (ast);
-	}	else if (!strcmp (ast->ast_type, "AST_declaration")) {
-		codegen_declaration (ast);
+  } else if (!strcmp (ast->ast_type, "AST_statement_while")) {
+    codegen_statement_while (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_int")
              ||!strcmp (ast->ast_type, "AST_expression_char")) {
     codegen_expression_intchar (ast);
@@ -150,7 +155,13 @@ visit_AST (struct AST *ast)
              || !strcmp (ast->ast_type, "AST_expression_funcall2")) {
     codegen_expression_funcall (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_assign")) {
-	codegen_expression_assign (ast);
+    codegen_expression_assign (ast);
+  } else if (!strcmp (ast->ast_type, "AST_expression_less")) {
+    codegen_expression_less (ast);
+  } else if (!strcmp (ast->ast_type, "AST_expression_add")) {
+    codegen_expression_add (ast);
+  } else if (!strcmp (ast->ast_type, "AST_expression_sub")) {
+    codegen_expression_sub (ast);
   } else if (!strcmp (ast->ast_type, "AST_argument_expression_list_pair")) {
     codegen_argument_expression_list_pair (ast);
   } else {
@@ -239,16 +250,30 @@ codegen_compound_statement (struct AST *ast)
 }
 
 static void
-codegen_declaration (struct AST *ast)
+codegen_statement_while (struct AST *ast)
 {
-	struct AST *declarator = ast->child[1];
-	char *decl_type = declarator->ast_type;
-	assert (!strcmp (ast->ast_type, "AST_declaration"));
+  int label_begin = label_num++; /* while文のコードのはじめのラベル番号 */
+  int label_end   = label_num++; /* while文のコードのおわりのラベル番号 */
 
-	if (!strcmp (decl_type, "AST_declarator_id")){
-		
-	}
+  assert (!strcmp (ast->ast_type, "AST_statement_while"));
+
+  emit_code (ast, "L%d", label_begin);
+
+  /* 条件式のコンパイル */
+  visit_AST(ast->child[0]);
+
+  emit_code (ast, "\tpopl\t%%eax\t#式の値を%eaxへ");
+  emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?");
+  emit_code (ast, "\tje\tL%d\t#0ならループから出る", label_end);
+
+  /* 実行文のコンパイル */
+  visit_AST(ast->child[1]);
+
+  emit_code (ast, "\tjmp\tL%d\t#条件判定へ戻る", label_begin);
+
+  emit_code (ast, "L%d", label_end);
 }
+
 static void
 codegen_expression_id (struct AST *ast)
 {
@@ -360,25 +385,45 @@ codegen_expression_funcall (struct AST *ast)
 static void
 codegen_expression_assign (struct AST *ast)
 {
-	char *id;
+  char *id;
   struct Symbol *symbol;
-
-	assert(!strcmp (ast->ast_type, "AST_expression_assign"));
-
+  
+  assert(!strcmp (ast->ast_type, "AST_expression_assign"));
+  
   id = ast->child[0]->child[0]->u.id;
   symbol = sym_lookup (id);
-	
-	/* 右辺値をスタックに積む */
-	visit_AST (ast->child[1]);
-
-	/* 左辺値のアドレスをスタックに積む */
-	emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
-
-	/* 代入 連続代入式のために右辺値はスタックトップに残す */
-	emit_code (ast, "\tpopl\t%%eax\n");
-	emit_code (ast, "\tmovl\t0(%%esp),%%ecx\n");
-	emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
+  
+  /* 右辺値をスタックに積む */
+  visit_AST (ast->child[1]);
+  
+  /* 左辺値のアドレスをスタックに積む */
+  emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
+  
+  /* 代入 連続代入式のために右辺値はスタックトップに残す */
+  emit_code (ast, "\tpopl\t%%eax\n");
+  emit_code (ast, "\tmovl\t0(%%esp),%%ecx\n");
+  emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
 }
+
+static void
+codegen_expression_less (struct AST *ast)
+{
+  assert (!strcmp (ast->ast_type, "AST_expression_less"));
+}
+
+static void
+codegen_expression_add (struct AST *ast)
+{
+  assert (!strcmp (ast->ast_type, "AST_expression_add"));
+  
+}
+
+static void
+codegen_expression_sub (struct AST *ast)
+{
+  assert (!strcmp (ast->ast_type, "AST_expression_sub"));
+}
+
 static void
 codegen_argument_expression_list_pair (struct AST *ast)
 {
