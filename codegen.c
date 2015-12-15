@@ -33,6 +33,7 @@ static void codegen_function_definition (struct AST *ast);
 static void codegen_statement_exp (struct AST *ast);
 static void codegen_compound_statement (struct AST *ast);
 static void codegen_statement_while (struct AST *ast);
+static void codegen_expression(struct AST *ast);
 static void codegen_expression_id (struct AST *ast);
 static void codegen_expression_intchar (struct AST *ast);
 static void codegen_expression_string (struct AST *ast);
@@ -144,24 +145,6 @@ visit_AST (struct AST *ast)
     codegen_compound_statement (ast);
   } else if (!strcmp (ast->ast_type, "AST_statement_while")) {
     codegen_statement_while (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_int")
-             ||!strcmp (ast->ast_type, "AST_expression_char")) {
-    codegen_expression_intchar (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_string")) {
-    codegen_expression_string (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_id")) {
-    codegen_expression_id (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_funcall1")
-             || !strcmp (ast->ast_type, "AST_expression_funcall2")) {
-    codegen_expression_funcall (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_assign")) {
-    codegen_expression_assign (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_less")) {
-    codegen_expression_less (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_add")) {
-    codegen_expression_add (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_sub")) {
-    codegen_expression_sub (ast);
   } else if (!strcmp (ast->ast_type, "AST_argument_expression_list_pair")) {
     codegen_argument_expression_list_pair (ast);
   } else {
@@ -223,9 +206,8 @@ codegen_statement_exp (struct AST *ast)
   assert (!strcmp (ast->ast_type, "AST_statement_exp"));
 
   /* 本体のコンパイル */
-  for (i = 0; i < ast->num_child; i++) {
-    visit_AST (ast->child [i]);
-  };
+  codegen_expression (ast->child[0]->child[0]);
+
   if (!strcmp (ast->child[0]->ast_type, "AST_expression_opt_single")){
     emit_code (ast, "\taddl\t$%d, %%esp\t# 返り値を廃棄\n", 4);
     frame_height -= 4;	/* スタックトップが廃棄されたので、4減らす。*/
@@ -257,21 +239,48 @@ codegen_statement_while (struct AST *ast)
 
   assert (!strcmp (ast->ast_type, "AST_statement_while"));
 
-  emit_code (ast, "L%d", label_begin);
+  emit_code (ast, "L%d:\n", label_begin);
 
   /* 条件式のコンパイル */
-  visit_AST(ast->child[0]);
+  codegen_expresion(ast->child[0]);
 
-  emit_code (ast, "\tpopl\t%%eax\t#式の値を%eaxへ");
-  emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?");
-  emit_code (ast, "\tje\tL%d\t#0ならループから出る", label_end);
+  emit_code (ast, "\tpopl\t%%eax\t#式の値を%eaxへ\n");
+  emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
+  emit_code (ast, "\tje\tL%d\t#0ならループから出る\n", label_end);
+  emit_code (ast, "\tjmp\tL%d\t#条件判定へ戻る\n", label_begin);
 
-  /* 実行文のコンパイル */
-  visit_AST(ast->child[1]);
+  emit_code (ast, "L%d:\n", label_end);
+}
 
-  emit_code (ast, "\tjmp\tL%d\t#条件判定へ戻る", label_begin);
-
-  emit_code (ast, "L%d", label_end);
+static void 
+codegen_expression(struct AST *ast)
+{
+  int i;
+  if (!strcmp (ast->ast_type, "AST_expression_assign")){
+    codegen_expression_assign(ast);
+  } 
+  else {
+    for (i = 0; i < ast->num_child; i++){
+      codegen_expression(ast->child[i]);
+    }
+    if (!strcmp (ast->ast_type, "AST_expression_int")
+	||!strcmp (ast->ast_type, "AST_expression_char")) {
+      codegen_expression_intchar (ast);
+    } else if (!strcmp (ast->ast_type, "AST_expression_string")) {
+      codegen_expression_string (ast);
+    } else if (!strcmp (ast->ast_type, "AST_expression_id")) {
+      codegen_expression_id (ast);
+    } else if (!strcmp (ast->ast_type, "AST_expression_funcall1")
+	       || !strcmp (ast->ast_type, "AST_expression_funcall2")) {
+      codegen_expression_funcall (ast);
+    } else if (!strcmp (ast->ast_type, "AST_expression_less")) {
+      codegen_expression_less (ast);
+    } else if (!strcmp (ast->ast_type, "AST_expression_add")) {
+      codegen_expression_add (ast);
+    } else if (!strcmp (ast->ast_type, "AST_expression_sub")) {
+      codegen_expression_sub (ast);
+    }
+  }
 }
 
 static void
@@ -361,10 +370,13 @@ codegen_expression_funcall (struct AST *ast)
     frame_height += padding;
   };
   
-  /* 引数の値を積んでから、関数呼び出し */
-  for (i = ast->num_child - 1; i >= 0 ; i--) {
-    visit_AST (ast->child [i]);
+  /* 引数の値を積む */
+  for (i = ast->num_child - 1; i > 0 ; i--) {
+    codegen_expression (ast->child [i]);
   };
+
+  /* 関数呼び出し */
+  visit_AST(ast->child[0]);
   
   /* 引数とpaddingを捨てる */
   if (!strcmp (ast->ast_type, "AST_expression_funcall1") 
@@ -394,7 +406,7 @@ codegen_expression_assign (struct AST *ast)
   symbol = sym_lookup (id);
   
   /* 右辺値をスタックに積む */
-  visit_AST (ast->child[1]);
+  codegen_expression(ast->child[1]);
   
   /* 左辺値のアドレスをスタックに積む */
   emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
@@ -408,13 +420,35 @@ codegen_expression_assign (struct AST *ast)
 static void
 codegen_expression_less (struct AST *ast)
 {
+  int label1 = label_num++;
+  int label2 = label_num++;
+
   assert (!strcmp (ast->ast_type, "AST_expression_less"));
+
+  emit_code (ast, "\tpopl\t%%ecx\n");
+  emit_code (ast, "\tpopl\t%%eax\n");
+  emit_code (ast, "\tcmpl\t%%ecx, %%eax\t#比較\n");
+  emit_code (ast, "\tjl\tL%d\n", label1);
+  emit_code (ast, "\tpushl\t$0\t#偽の場合\n");
+  emit_code (ast, "\tjmp\tL%d\n", label2);
+  emit_code (ast, "L%d:\n" ,label1);
+  emit_code (ast, "\tpushl\t$1\t#真の場合\n");
+  emit_code (ast, "L%d:\n", label2);
+
+  frame_height += 4; /* スタックトップに比較結果が積まれた */
 }
 
 static void
 codegen_expression_add (struct AST *ast)
 {
   assert (!strcmp (ast->ast_type, "AST_expression_add"));
+
+  emit_code (ast, "\tpopl\t%%ecx\n");
+  emit_code (ast, "\tpopl\t%%eax\n");
+  emit_code (ast, "\taddl\t%%ecx, %%eax\t#加算\n");
+  emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
+
+  frame_height += 4; /* スタックトップに加算結果が積まれた */
   
 }
 
@@ -422,6 +456,14 @@ static void
 codegen_expression_sub (struct AST *ast)
 {
   assert (!strcmp (ast->ast_type, "AST_expression_sub"));
+
+  emit_code (ast, "\tpopl\t%%ecx\n");
+  emit_code (ast, "\tpopl\t%%eax\n");
+  emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
+  emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
+
+  frame_height += 4; /* スタックトップに減算結果が積まれた */
+  
 }
 
 static void
