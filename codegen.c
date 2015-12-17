@@ -234,7 +234,7 @@ codegen_compound_statement (struct AST *ast)
 static void
 codegen_statement_while (struct AST *ast)
 {
-  int label_begin = label_num++; /* while文のコードのはじめのラベル番号 */
+  int label_begin = label_num++; /* while文のコードの始めのラベル番号 */
   int label_end   = label_num++; /* while文のコードのおわりのラベル番号 */
 
   dump_AST(ast, 2);
