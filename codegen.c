@@ -244,9 +244,11 @@ codegen_statement_while (struct AST *ast)
   /* 条件式のコンパイル */
   codegen_expression(ast->child[0]);
 
+	/* 条件判定 */
   emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
   emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
   emit_code (ast, "\tje\tL%d\t#0ならループから出る\n", label_end);
+	frame_height -= 4; /* 条件文の結果が破棄された */
 
   /* 実行文のコンパイル */
   visit_AST(ast->child[1]);
@@ -440,7 +442,7 @@ codegen_expression_less (struct AST *ast)
   emit_code (ast, "\tpushl\t$1\t#真の場合\n");
   emit_code (ast, "L%d:\n", label2);
 
-  frame_height += 4; /* スタックトップに比較結果が積まれた */
+  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに比較結果が積まれた(+4) */
 }
 
 static void
@@ -453,7 +455,7 @@ codegen_expression_add (struct AST *ast)
   emit_code (ast, "\taddl\t%%ecx, %%eax\t#加算\n");
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
 
-  frame_height += 4; /* スタックトップに加算結果が積まれた */
+  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに加算結果が積まれた(+4) */
   
 }
 
@@ -467,7 +469,7 @@ codegen_expression_sub (struct AST *ast)
   emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
 
-  frame_height += 4; /* スタックトップに減算結果が積まれた */
+  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに減算結果が積まれた(+4) */
   
 }
 
