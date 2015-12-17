@@ -242,11 +242,15 @@ codegen_statement_while (struct AST *ast)
   emit_code (ast, "L%d:\n", label_begin);
 
   /* 条件式のコンパイル */
-  codegen_expresion(ast->child[0]);
+  codegen_expression(ast->child[0]);
 
-  emit_code (ast, "\tpopl\t%%eax\t#式の値を%eaxへ\n");
+  emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
   emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
   emit_code (ast, "\tje\tL%d\t#0ならループから出る\n", label_end);
+
+  /* 実行文のコンパイル */
+  visit_AST(ast->child[1]);
+
   emit_code (ast, "\tjmp\tL%d\t#条件判定へ戻る\n", label_begin);
 
   emit_code (ast, "L%d:\n", label_end);
@@ -259,9 +263,12 @@ codegen_expression(struct AST *ast)
   if (!strcmp (ast->ast_type, "AST_expression_assign")){
     codegen_expression_assign(ast);
   } 
-  else {
-    for (i = 0; i < ast->num_child; i++){
-      codegen_expression(ast->child[i]);
+  else{
+    if (strcmp (ast->ast_type, "AST_expression_funcall1")
+	&& strcmp (ast->ast_type, "AST_expression_funcall2")){
+      for (i = 0; i < ast->num_child; i++){
+	codegen_expression(ast->child[i]);
+      }
     }
     if (!strcmp (ast->ast_type, "AST_expression_int")
 	||!strcmp (ast->ast_type, "AST_expression_char")) {
@@ -371,13 +378,11 @@ codegen_expression_funcall (struct AST *ast)
   };
   
   /* 引数の値を積む */
-  for (i = ast->num_child - 1; i > 0 ; i--) {
-    codegen_expression (ast->child [i]);
-  };
+  codegen_argument_expression_list_pair(ast->child[1]);
 
   /* 関数呼び出し */
-  visit_AST(ast->child[0]);
-  
+  codegen_expression_id(ast->child[0]);
+
   /* 引数とpaddingを捨てる */
   if (!strcmp (ast->ast_type, "AST_expression_funcall1") 
       && ast->child[1]->u.arg_size != 0) {
@@ -475,6 +480,6 @@ codegen_argument_expression_list_pair (struct AST *ast)
   
   /* 引数の値を逆順にスタックに積むため、逆に子供をたどる */
   for (i = ast->num_child - 1; i >= 0 ; i--) {
-    visit_AST (ast->child [i]);
+    codegen_expression(ast->child [i]);
   };
 }
