@@ -545,6 +545,7 @@ static void codegen_expression_div (struct AST *ast)
 
   emit_code (ast, "\tpopl\t%%ecx\n");
   emit_code (ast, "\tpopl\t%%eax\n");
+  emit_code (ast, "\tcltd\t#符号拡張\n");
   emit_code (ast, "\tidivl\t%%ecx\t#除算\n");
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
 
