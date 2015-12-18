@@ -39,14 +39,9 @@ static void codegen_expression_intchar (struct AST *ast);
 static void codegen_expression_string (struct AST *ast);
 static void codegen_expression_funcall (struct AST *ast);
 static void codegen_expression_assign (struct AST *ast);
-static void codegen_expression_lor (struct AST *ast);
-static void codegen_expression_land (struct AST *ast);
-static void codegen_expression_eq (struct AST *ast);
 static void codegen_expression_less (struct AST *ast);
 static void codegen_expression_add (struct AST *ast);
 static void codegen_expression_sub (struct AST *ast);
-static void codegen_expression_mul (struct AST *ast);
-static void codegen_expression_div (struct AST *ast);
 static void codegen_argument_expression_list_pair (struct AST *ast);
 
 /* ---------------------------------------------------------------------- */
@@ -247,13 +242,11 @@ codegen_statement_while (struct AST *ast)
   emit_code (ast, "L%d:\n", label_begin);
 
   /* 条件式のコンパイル */
-  codegen_expression(ast->child[0]);
+  codegen_expresion(ast->child[0]);
 
-	/* 条件判定 */
-  emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
+  emit_code (ast, "\tpopl\t%%eax\t#式の値を%eaxへ\n");
   emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
   emit_code (ast, "\tje\tL%d\t#0ならループから出る\n", label_end);
-	frame_height -= 4; /* 条件文の結果が破棄された */
 
   /* 実行文のコンパイル */
   visit_AST(ast->child[1]);
@@ -270,12 +263,9 @@ codegen_expression(struct AST *ast)
   if (!strcmp (ast->ast_type, "AST_expression_assign")){
     codegen_expression_assign(ast);
   } 
-  else{
-    if (strcmp (ast->ast_type, "AST_expression_funcall1")
-	&& strcmp (ast->ast_type, "AST_expression_funcall2")){
-      for (i = 0; i < ast->num_child; i++){
-	codegen_expression(ast->child[i]);
-      }
+  else {
+    for (i = 0; i < ast->num_child; i++){
+      codegen_expression(ast->child[i]);
     }
     if (!strcmp (ast->ast_type, "AST_expression_int")
 	||!strcmp (ast->ast_type, "AST_expression_char")) {
@@ -287,23 +277,13 @@ codegen_expression(struct AST *ast)
     } else if (!strcmp (ast->ast_type, "AST_expression_funcall1")
 	       || !strcmp (ast->ast_type, "AST_expression_funcall2")) {
       codegen_expression_funcall (ast);
-    } else if (!strcmp (ast->ast_type, "AST_expression_lor")){
-      codegen_expression_lor (ast);
-    } else if (!strcmp (ast->ast_type, "AST_expression_land")){
-      codegen_expression_land (ast);
-    } else if (!strcmp (ast->ast_type, "AST_expression_eq")){
-      codegen_expression_eq (ast);
     } else if (!strcmp (ast->ast_type, "AST_expression_less")) {
       codegen_expression_less (ast);
     } else if (!strcmp (ast->ast_type, "AST_expression_add")) {
       codegen_expression_add (ast);
     } else if (!strcmp (ast->ast_type, "AST_expression_sub")) {
       codegen_expression_sub (ast);
-    } else if (!strcmp (ast->ast_type, "AST_expression_mul")) {
-      codegen_expression_mul (ast);
-    } else if (!strcmp (ast->ast_type, "AST_expression_div")) {
-      codegen_expression_div (ast);
-    } 
+    }
   }
 }
 
@@ -395,11 +375,13 @@ codegen_expression_funcall (struct AST *ast)
   };
   
   /* 引数の値を積む */
-  codegen_argument_expression_list_pair(ast->child[1]);
+  for (i = ast->num_child - 1; i > 0 ; i--) {
+    codegen_expression (ast->child [i]);
+  };
 
   /* 関数呼び出し */
-  codegen_expression_id(ast->child[0]);
-
+  visit_AST(ast->child[0]);
+  
   /* 引数とpaddingを捨てる */
   if (!strcmp (ast->ast_type, "AST_expression_funcall1") 
       && ast->child[1]->u.arg_size != 0) {
@@ -439,26 +421,6 @@ codegen_expression_assign (struct AST *ast)
   emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
 }
 
-static void codegen_expression_lor (struct AST *ast)
-{
-  
-}
-
-static void codegen_expression_land (struct AST *ast)
-{
-}
-static void codegen_expression_eq (struct AST *ast)
-{
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tcmpl\t%%ecx, %%eax\t#比較\n");
-  emit_code (ast, "\tsete\t%%al\t#比較結果を%%alに代入\n");
-  emit_code (ast, "\tmovzbl\t%%al, %%eax\t#%%elをゼロ拡張して%%eaxへ\n");
-  emit_code (ast, "\tpushl\t%%eax\n");
-
-  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに比較結果が積まれた(+4) */
-}
-
 static void
 codegen_expression_less (struct AST *ast)
 {
@@ -477,7 +439,7 @@ codegen_expression_less (struct AST *ast)
   emit_code (ast, "\tpushl\t$1\t#真の場合\n");
   emit_code (ast, "L%d:\n", label2);
 
-  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに比較結果が積まれた(+4) */
+  frame_height += 4; /* スタックトップに比較結果が積まれた */
 }
 
 static void
@@ -490,7 +452,7 @@ codegen_expression_add (struct AST *ast)
   emit_code (ast, "\taddl\t%%ecx, %%eax\t#加算\n");
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
 
-  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに加算結果が積まれた(+4) */
+  frame_height += 4; /* スタックトップに加算結果が積まれた */
   
 }
 
@@ -504,32 +466,10 @@ codegen_expression_sub (struct AST *ast)
   emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
 
-  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに減算結果が積まれた(+4) */
+  frame_height += 4; /* スタックトップに減算結果が積まれた */
   
 }
 
-static void codegen_expression_mul (struct AST *ast)
-{
-  assert (!strcmp (ast->ast_type, "AST_expression_mul"));
-
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\timull\t%%ecx, %%eax\t#乗算\n");
-  emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
-
-  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに減算結果が積まれた(+4) */
-}
-static void codegen_expression_div (struct AST *ast)
-{
-  assert (!strcmp (ast->ast_type, "AST_expression_div"));
-
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tidivl\t%%ecx\t#除算\n");
-  emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
-
-  frame_height -= 4; /* 2つの値をポップ(-8)→スタックトップに減算結果が積まれた(+4) */
-}
 static void
 codegen_argument_expression_list_pair (struct AST *ast)
 {
@@ -539,6 +479,6 @@ codegen_argument_expression_list_pair (struct AST *ast)
   
   /* 引数の値を逆順にスタックに積むため、逆に子供をたどる */
   for (i = ast->num_child - 1; i >= 0 ; i--) {
-    codegen_expression(ast->child [i]);
+    visit_AST (ast->child [i]);
   };
 }
