@@ -32,6 +32,8 @@ static void visit_AST (struct AST *ast);
 static void codegen_function_definition (struct AST *ast);
 static void codegen_statement_exp (struct AST *ast);
 static void codegen_compound_statement (struct AST *ast);
+static void codegen_statement_if (struct AST *ast);
+static void codegen_statement_ifelse (struct AST *ast);
 static void codegen_statement_while (struct AST *ast);
 static void codegen_expression_id (struct AST *ast);
 static void codegen_expression_intchar (struct AST *ast);
@@ -147,6 +149,10 @@ visit_AST (struct AST *ast)
     codegen_statement_exp (ast);
   } else if (!strcmp (ast->ast_type, "AST_compound_statement")) {
     codegen_compound_statement (ast);
+  } else if (!strcmp (ast->ast_type, "AST_statement_if")) {
+    codegen_statement_if (ast);
+  } else if (!strcmp (ast->ast_type, "AST_statement_ifelse")) {
+    codegen_statement_ifelse (ast);
   } else if (!strcmp (ast->ast_type, "AST_statement_while")) {
     codegen_statement_while (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_int")
@@ -265,6 +271,55 @@ codegen_compound_statement (struct AST *ast)
 }
 
 static void
+codegen_statement_if (struct AST *ast)
+{
+  int label_end   = label_num++; /* if文のコードの終わりのラベル番号*/
+
+  assert (!strcmp (ast->ast_type, "AST_statement_if"));
+
+  /* 条件式のコンパイル*/
+  visit_AST(ast->child[0]);
+
+  emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
+  emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
+  emit_code (ast, "\tje\tL%d\t#0なら終わりまでジャンプ\n", label_end);
+  frame_height -= 4;
+
+  /* 実行文のコンパイル*/
+  visit_AST(ast->child[1]);
+
+  emit_code (ast, "L%d:\n", label_end);
+}
+
+static void
+codegen_statement_ifelse (struct AST *ast)
+{
+  int label_else = label_num++; /* if-else文のelseのコードの始まり*/
+  int label_end  = label_num++; /* if-else文のコードの終わり*/
+
+  assert (!strcmp (ast->ast_type, "AST_statement_ifelse"));
+
+  /* 条件式のコンパイル*/
+  visit_AST(ast->child[0]);
+
+  emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
+  emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
+  emit_code (ast, "\tje\tL%d\t#0ならelse部にジャンプ\n", label_else);
+  frame_height -= 4;
+
+  /* 条件式がtrueのとき実行される文(if部)のコンパイル*/
+  visit_AST(ast->child[1]);
+  emit_code (ast, "\tjmp\tL%d\t#else部をスキップ\n", label_end);
+
+  emit_code (ast, "L%d:\n", label_else); /* else部のラベル*/
+
+  /* 条件式がfalseのとき実行される文(else部)のコンパイル*/
+  visit_AST(ast->child[2]);
+
+  emit_code (ast, "L%d:\n", label_end);
+}
+
+static void
 codegen_statement_while (struct AST *ast)
 {
   int label_begin = label_num++; /* while文のコードのはじめのラベル番号 */
@@ -277,7 +332,7 @@ codegen_statement_while (struct AST *ast)
   /* 条件式のコンパイル */
   visit_AST(ast->child[0]);
 
-  emit_code (ast, "\tpopl\t%%eax\t#式の値を%eaxへ\n");
+  emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
   emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
   emit_code (ast, "\tje\tL%d\t#0ならループから出る\n", label_end);
   frame_height -= 4; /* 条件文の結果が破棄された */
