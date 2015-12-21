@@ -32,22 +32,15 @@ static void visit_AST (struct AST *ast);
 static void codegen_function_definition (struct AST *ast);
 static void codegen_statement_exp (struct AST *ast);
 static void codegen_compound_statement (struct AST *ast);
-static void codegen_statement_if (struct AST *ast);
-static void codegen_statement_ifelse (struct AST *ast);
 static void codegen_statement_while (struct AST *ast);
 static void codegen_expression_id (struct AST *ast);
 static void codegen_expression_intchar (struct AST *ast);
 static void codegen_expression_string (struct AST *ast);
 static void codegen_expression_funcall (struct AST *ast);
 static void codegen_expression_assign (struct AST *ast);
-static void codegen_expression_lor (struct AST *ast);
-static void codegen_expression_land (struct AST *ast);
-static void codegen_expression_eq (struct AST *ast);
 static void codegen_expression_less (struct AST *ast);
 static void codegen_expression_add (struct AST *ast);
 static void codegen_expression_sub (struct AST *ast);
-static void codegen_expression_mul (struct AST *ast);
-static void codegen_expression_div (struct AST *ast);
 static void codegen_argument_expression_list_pair (struct AST *ast);
 
 /* ---------------------------------------------------------------------- */
@@ -149,10 +142,6 @@ visit_AST (struct AST *ast)
     codegen_statement_exp (ast);
   } else if (!strcmp (ast->ast_type, "AST_compound_statement")) {
     codegen_compound_statement (ast);
-  } else if (!strcmp (ast->ast_type, "AST_statement_if")) {
-    codegen_statement_if (ast);
-  } else if (!strcmp (ast->ast_type, "AST_statement_ifelse")) {
-    codegen_statement_ifelse (ast);
   } else if (!strcmp (ast->ast_type, "AST_statement_while")) {
     codegen_statement_while (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_int")
@@ -165,12 +154,6 @@ visit_AST (struct AST *ast)
   } else if (!strcmp (ast->ast_type, "AST_expression_funcall1")
              || !strcmp (ast->ast_type, "AST_expression_funcall2")) {
     codegen_expression_funcall (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_lor")){
-    codegen_expression_lor (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_land")){
-    codegen_expression_land (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_eq")){
-    codegen_expression_eq (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_assign")) {
     codegen_expression_assign (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_less")) {
@@ -179,10 +162,6 @@ visit_AST (struct AST *ast)
     codegen_expression_add (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_sub")) {
     codegen_expression_sub (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_mul")) {
-    codegen_expression_mul (ast);
-  } else if (!strcmp (ast->ast_type, "AST_expression_div")) {
-    codegen_expression_div (ast); 
   } else if (!strcmp (ast->ast_type, "AST_argument_expression_list_pair")) {
     codegen_argument_expression_list_pair (ast);
   } else {
@@ -271,55 +250,6 @@ codegen_compound_statement (struct AST *ast)
 }
 
 static void
-codegen_statement_if (struct AST *ast)
-{
-  int label_end   = label_num++; /* if文のコードの終わりのラベル番号*/
-
-  assert (!strcmp (ast->ast_type, "AST_statement_if"));
-
-  /* 条件式のコンパイル*/
-  visit_AST(ast->child[0]);
-
-  emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
-  emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
-  emit_code (ast, "\tje\tL%d\t#0なら終わりまでジャンプ\n", label_end);
-  frame_height -= 4;
-
-  /* 実行文のコンパイル*/
-  visit_AST(ast->child[1]);
-
-  emit_code (ast, "L%d:\n", label_end);
-}
-
-static void
-codegen_statement_ifelse (struct AST *ast)
-{
-  int label_else = label_num++; /* if-else文のelseのコードの始まり*/
-  int label_end  = label_num++; /* if-else文のコードの終わり*/
-
-  assert (!strcmp (ast->ast_type, "AST_statement_ifelse"));
-
-  /* 条件式のコンパイル*/
-  visit_AST(ast->child[0]);
-
-  emit_code (ast, "\tpopl\t%%eax\t#式の値を%%eaxへ\n");
-  emit_code (ast, "\tcmpl\t$0, %%eax\t#式の値=0?\n");
-  emit_code (ast, "\tje\tL%d\t#0ならelse部にジャンプ\n", label_else);
-  frame_height -= 4;
-
-  /* 条件式がtrueのとき実行される文(if部)のコンパイル*/
-  visit_AST(ast->child[1]);
-  emit_code (ast, "\tjmp\tL%d\t#else部をスキップ\n", label_end);
-
-  emit_code (ast, "L%d:\n", label_else); /* else部のラベル*/
-
-  /* 条件式がfalseのとき実行される文(else部)のコンパイル*/
-  visit_AST(ast->child[2]);
-
-  emit_code (ast, "L%d:\n", label_end);
-}
-
-static void
 codegen_statement_while (struct AST *ast)
 {
   int label_begin = label_num++; /* while文のコードのはじめのラベル番号 */
@@ -366,6 +296,7 @@ codegen_expression_id (struct AST *ast)
     case TYPE_KIND_PRIM:
       emit_code (ast, "\tpushl\t_%s\n", id);
 			frame_height += 4;	/* スタックに変数の値が積まれた */
+      break;
     case TYPE_KIND_POINTER:
       break;
     case TYPE_KIND_FUNCTION:
@@ -476,74 +407,6 @@ codegen_expression_assign (struct AST *ast)
   emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
 }
 
-static void codegen_expression_lor (struct AST *ast)
-{
-  int i;
-	int label1 = label_num++;
-	int label2 = label_num++;
-
-	assert (!strcmp (ast->ast_type, "AST_expression_lor"));
-
-	for(i = 0; i < ast->num_child; i++){
-		visit_AST (ast->child[i]);
-		emit_code (ast, "\tpopl\t%%eax\n");
-		frame_height -= 4;
-		emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
-		emit_code (ast, "\tjne\tL%d\t#0でなければ結果は1(true)\n", label1);
-	}
-	emit_code (ast, "\tpushl\t$0\t#どちらも0なら結果は0(false)\n");
-	emit_code (ast, "\tjmp\tL%d\n", label2);
-	emit_code (ast, "L%d:\n", label1);
-	emit_code (ast, "\tpushl\t$1\n");
-	emit_code (ast, "L%d:\n", label2);
-
-	frame_height += 4;
-}
-
-static void codegen_expression_land (struct AST *ast)
-{
-	int i;
-	int label1 = label_num++;
-	int label2 = label_num++;
-
-	assert (!strcmp (ast->ast_type, "AST_expression_land"));
-
-	for(i = 0; i < ast->num_child; i++){
-		visit_AST (ast->child[i]);
-		emit_code (ast, "\tpopl\t%%eax\n");
-		frame_height -= 4;
-		emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
-		emit_code (ast, "\tje\tL%d\t#0なら結果は0(false)\n", label1);
-	}
-	emit_code (ast, "\tpushl\t$1\t#どちらも0でなければ結果は1(true)\n");
-	emit_code (ast, "\tjmp\tL%d\n", label2);
-	emit_code (ast, "L%d:\n", label1);
-	emit_code (ast, "\tpushl\t$0\n");
-	emit_code (ast, "L%d:\n", label2);
-
-	frame_height += 4;
-}
-
-static void codegen_expression_eq (struct AST *ast)
-{
-  int i;
-
-  assert (!strcmp (ast->ast_type, "AST_expression_eq"));
-
-  for(i = 0; i < ast->num_child; i++){
-    visit_AST (ast->child[i]);
-  }
-
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tcmpl\t%%ecx, %%eax\t#比較\n");
-  emit_code (ast, "\tsete\t%%al\t#比較結果を%%alに代入\n");
-  emit_code (ast, "\tmovzbl\t%%al, %%eax\t#%%elをゼロ拡張して%%eaxへ\n");
-  emit_code (ast, "\tpushl\t%%eax\n");
-
-  frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
-}
-
 static void
 codegen_expression_less (struct AST *ast)
 {
@@ -608,42 +471,6 @@ codegen_expression_sub (struct AST *ast)
 
   frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
   
-}
-
-static void codegen_expression_mul (struct AST *ast)
-{
-  int i;
-
-  assert (!strcmp (ast->ast_type, "AST_expression_mul"));
-
-  for(i = 0; i < ast->num_child; i++){
-    visit_AST (ast->child[i]);
-  }
-
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\timull\t%%ecx, %%eax\t#乗算\n");
-  emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
-
-  frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
-}
-static void codegen_expression_div (struct AST *ast)
-{
-  int i;
-
-  assert (!strcmp (ast->ast_type, "AST_expression_div"));
-
-  for(i = 0; i < ast->num_child; i++){
-    visit_AST (ast->child[i]);
-  }
-
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tcltd\t#符号拡張\n");
-  emit_code (ast, "\tidivl\t%%ecx\t#除算\n");
-  emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
-
-  frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
 }
 
 static void
