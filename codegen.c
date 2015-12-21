@@ -366,6 +366,7 @@ codegen_expression_id (struct AST *ast)
     case TYPE_KIND_PRIM:
       emit_code (ast, "\tpushl\t_%s\n", id);
 			frame_height += 4;	/* スタックに変数の値が積まれた */
+      break;
     case TYPE_KIND_POINTER:
       break;
     case TYPE_KIND_FUNCTION:
