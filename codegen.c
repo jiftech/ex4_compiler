@@ -223,6 +223,7 @@ codegen_function_definition (struct AST *ast)
 
   /* 局所変数の領域確保 */
   emit_code (ast, "\tsubl\t%d, %%esp\t# 局所変数の領域を確保\n", ast->u.func.total_local_size);
+  frame_height += ast->u.func.total_local_size;
   
   /* 本体のコンパイル */
   for (i = 0; i < ast->num_child; i++) {
@@ -362,28 +363,33 @@ codegen_expression_id (struct AST *ast)
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
       emit_code (ast, "\tpushl\t-%d(%%ebp)\n", symbol->offset + 4);
+      frame_height += 4;	/* スタックに変数の値が積まれた */
+      break;
     case TYPE_KIND_POINTER:
       break;
-    case default:
+    default:
       assert(0);
       break;
     }
+    break;
   case NS_ARG:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
       emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset);
+      frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_POINTER:
       break;
-    case default:
+    default:
       assert(0);
       break;
     }
+    break;
   case NS_GLOBAL:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
       emit_code (ast, "\tpushl\t_%s\n", id);
-			frame_height += 4;	/* スタックに変数の値が積まれた */
+      frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_POINTER:
       break;
@@ -499,7 +505,7 @@ codegen_expression_assign (struct AST *ast)
     case NS_GLOBAL:
       emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
       break;
-    case default:
+    default:
       assert(0);
       break;
   }
