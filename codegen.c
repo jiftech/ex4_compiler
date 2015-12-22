@@ -212,7 +212,6 @@ codegen_function_definition (struct AST *ast)
   assert (!strcmp (ast->ast_type, "AST_function_definition"));
   
   codegen_begin_function (ast);	/* 名前表の修正 */
-
   frame_height = 4;	/* 呼び出されたときは、%eipのみスタックにあるため、大きさは4 */
   if (sym_table.string != NULL) 
     codegen_string_def (ast, sym_table.string);
@@ -222,6 +221,9 @@ codegen_function_definition (struct AST *ast)
   emit_code (ast, "\tpushl\t%%ebp\t# スタックフレームを作成\n");
   frame_height += 4;	/* スタックに%ebpが積まれたため、大きさを4増やす */
   emit_code (ast, "\tmovl\t%%esp, %%ebp\n");
+
+  /* 局所変数の領域確保 */
+  emit_code (ast, "\tsubl\t%d, %%esp\t# 局所変数の領域を確保\n", ast.u.func.total_local_size);
   
   /* 本体のコンパイル */
   for (i = 0; i < ast->num_child; i++) {
