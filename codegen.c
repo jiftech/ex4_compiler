@@ -359,17 +359,26 @@ codegen_expression_id (struct AST *ast)
 
   switch (symbol->name_space) {
   case NS_LOCAL:
-    break;
+    switch (symbol->type->kind) {
+    case TYPE_KIND_PRIM:
+      emit_code (ast, "\tpushl\t-%d(%%ebp)\n", symbol->offset + 4);
+    case TYPE_KIND_POINTER:
+      break;
+    case default:
+      assert(0);
+      break;
+    }
   case NS_ARG:
-          switch () {
-              case <#constant#>:
-                  <#statements#>
-                  break;
-                  
-              default:
-                  break;
-          }
-    break;
+    switch (symbol->type->kind) {
+    case TYPE_KIND_PRIM:
+      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset);
+      break;
+    case TYPE_KIND_POINTER:
+      break;
+    case default:
+      assert(0);
+      break;
+    }
   case NS_GLOBAL:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
@@ -478,7 +487,22 @@ codegen_expression_assign (struct AST *ast)
   visit_AST (ast->child[1]);
   
   /* 左辺値のアドレスをスタックに積む */
-  emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
+  switch(symbol->name_space){
+    case NS_LOCAL:
+      emit_code (ast, "\tleal\t-%d(%%ebp), %%eax\n", symbol->offset + 4);
+      emit_code (ast, "\tpushl\t%%eax\n");
+      break;
+    case NS_ARG:
+      emit_code (ast, "\tleal\t%d(%%ebp), %%eax\n", symbol->offset);
+      emit_code (ast, "\tpushl\t%%eax\n");
+      break;
+    case NS_GLOBAL:
+      emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
+      break;
+    case default:
+      assert(0);
+      break;
+  }
   
   /* 代入 連続代入式のために右辺値はスタックトップに残す */
   emit_code (ast, "\tpopl\t%%eax\n");
