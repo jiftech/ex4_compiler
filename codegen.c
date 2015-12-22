@@ -35,6 +35,7 @@ static void codegen_compound_statement (struct AST *ast);
 static void codegen_statement_if (struct AST *ast);
 static void codegen_statement_ifelse (struct AST *ast);
 static void codegen_statement_while (struct AST *ast);
+static void codegen_statement_return (struct AST *ast);
 static void codegen_expression_id (struct AST *ast);
 static void codegen_expression_intchar (struct AST *ast);
 static void codegen_expression_string (struct AST *ast);
@@ -155,6 +156,8 @@ visit_AST (struct AST *ast)
     codegen_statement_ifelse (ast);
   } else if (!strcmp (ast->ast_type, "AST_statement_while")) {
     codegen_statement_while (ast);
+  } else if (!strcmp (ast->ast_type, "AST_statement_return")) {
+    codegen_statement_return (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_int")
              ||!strcmp (ast->ast_type, "AST_expression_char")) {
     codegen_expression_intchar (ast);
@@ -345,6 +348,21 @@ codegen_statement_while (struct AST *ast)
   emit_code (ast, "\tjmp\tL%d\t#条件判定へ戻る\n", label_begin);
 
   emit_code (ast, "L%d:\n", label_end);
+}
+
+static void
+codegen_statement_return (struct  AST *ast)
+{
+  assert (!strcmp (ast->ast_type, "AST_statement_return"));
+
+  /* 返り値の式のコンパイル */
+  visit_AST(ast->child[0]);
+
+  /* 返り値がある場合は返り値を%eaxへ */
+  if(!strcmp (ast->child[0]->ast_type, "AST_expression_opt_single"){
+    emit_code (ast, "\tpopl\t%%eax\t#返り値を%%eaxへ");
+  }
+  emit_code (ast, "\tmovl\tL.XCC.RE.%s:\n", funcname);
 }
 
 static void
