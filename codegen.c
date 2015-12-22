@@ -20,10 +20,10 @@ static void codegen_end_block (void);
 static void codegen_begin_function (struct AST *ast);
 static void codegen_end_function (void);
 
-static int frame_height;	/* ã‚¹ã‚¿ãƒƒã‚¯ãƒ•ãƒ¬ãƒ¼ãƒ ã®å¤§ãã• */
-static char *funcname;		/* ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«ä¸­ã®é–¢æ•°å */
+static int frame_height;	/* ¥¹¥¿¥Ã¥¯¥Õ¥ì©`¥à¤Î´ó¤­¤µ */
+static char *funcname;		/* ¥³¥ó¥Ñ¥¤¥ëÖĞ¤ÎévÊıÃû */
 
-static int label_num; /* æ¬¡ã«ä½¿ç”¨ã™ã‚‹ãƒ©ãƒ™ãƒ«ç•ªå·ã‚’ç®¡ç† */
+static int label_num; /* ´Î¤ËÊ¹ÓÃ¤¹¤ë¥é¥Ù¥ë·¬ºÅ¤ò¹ÜÀí */
 
 static void codegen_global (void);
 static void codegen_global_func (struct Symbol *sym);
@@ -134,7 +134,7 @@ codegen_global_func (struct Symbol *sym)
   };
 }
 
-/* å¤§åŸŸå¤‰æ•°ã®é ˜åŸŸç¢ºä¿ */
+/* ´óÓò‰äÊı¤ÎîIÓò´_±£ */
 static void
 codegen_global_var (struct Symbol *sym)
 {
@@ -211,31 +211,31 @@ codegen_function_definition (struct AST *ast)
 
   assert (!strcmp (ast->ast_type, "AST_function_definition"));
   
-  codegen_begin_function (ast);	/* åå‰è¡¨ã®ä¿®æ­£ */
-  frame_height = 4;	/* å‘¼ã³å‡ºã•ã‚ŒãŸã¨ãã¯ã€%eipã®ã¿ã‚¹ã‚¿ãƒƒã‚¯ã«ã‚ã‚‹ãŸã‚ã€å¤§ãã•ã¯4 */
+  codegen_begin_function (ast);	/* ÃûÇ°±í¤ÎĞŞÕı */
+  frame_height = 4;	/* ºô¤Ó³ö¤µ¤ì¤¿¤È¤­¤Ï¡¢%eip¤Î¤ß¥¹¥¿¥Ã¥¯¤Ë¤¢¤ë¤¿¤á¡¢´ó¤­¤µ¤Ï4 */
   if (sym_table.string != NULL) 
     codegen_string_def (ast, sym_table.string);
   emit_code (ast, "\t.text\n");
   emit_code (ast, "\t.globl\t_%s\n", funcname);
   emit_code (ast, "_%s:\n", funcname);
-  emit_code (ast, "\tpushl\t%%ebp\t# ã‚¹ã‚¿ãƒƒã‚¯ãƒ•ãƒ¬ãƒ¼ãƒ ã‚’ä½œæˆ\n");
-  frame_height += 4;	/* ã‚¹ã‚¿ãƒƒã‚¯ã«%ebpãŒç©ã¾ã‚ŒãŸãŸã‚ã€å¤§ãã•ã‚’4å¢—ã‚„ã™ */
+  emit_code (ast, "\tpushl\t%%ebp\t# ¥¹¥¿¥Ã¥¯¥Õ¥ì©`¥à¤ò×÷³É\n");
+  frame_height += 4;	/* ¥¹¥¿¥Ã¥¯¤Ë%ebp¤¬·e¤Ş¤ì¤¿¤¿¤á¡¢´ó¤­¤µ¤ò4‰ˆ¤ä¤¹ */
   emit_code (ast, "\tmovl\t%%esp, %%ebp\n");
 
-  /* å±€æ‰€å¤‰æ•°ã®é ˜åŸŸç¢ºä¿ */
-  emit_code (ast, "\tsubl\t%d, %%esp\t# å±€æ‰€å¤‰æ•°ã®é ˜åŸŸã‚’ç¢ºä¿\n", ast.u.func.total_local_size);
+  /* ¾ÖËù‰äÊı¤ÎîIÓò´_±£ */
+  emit_code (ast, "\tsubl\t%d, %%esp\t# ¾ÖËù‰äÊı¤ÎîIÓò¤ò´_±£\n", ast.u.func.total_local_size);
   
-  /* æœ¬ä½“ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ« */
+  /* ±¾Ìå¤Î¥³¥ó¥Ñ¥¤¥ë */
   for (i = 0; i < ast->num_child; i++) {
     visit_AST (ast->child [i]);
   };
   
   emit_code (ast, "L.XCC.RE.%s:\n", funcname);
-  emit_code (ast, "\tmovl\t%%ebp, %%esp\t# ã‚¹ã‚¿ãƒƒã‚¯ãƒ•ãƒ¬ãƒ¼ãƒ ã‚’é™¤å»\n");
+  emit_code (ast, "\tmovl\t%%ebp, %%esp\t# ¥¹¥¿¥Ã¥¯¥Õ¥ì©`¥à¤ò³ıÈ¥\n");
   emit_code (ast, "\tpopl\t%%ebp\n");
   emit_code (ast, "\tret\n");
   
-  codegen_end_function (); /* åå‰è¡¨ã®ä¿®æ­£ */
+  codegen_end_function (); /* ÃûÇ°±í¤ÎĞŞÕı */
 }
 
 static void
@@ -245,13 +245,13 @@ codegen_statement_exp (struct AST *ast)
   
   assert (!strcmp (ast->ast_type, "AST_statement_exp"));
 
-  /* æœ¬ä½“ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ« */
+  /* ±¾Ìå¤Î¥³¥ó¥Ñ¥¤¥ë */
   for (i = 0; i < ast->num_child; i++) {
     visit_AST (ast->child [i]);
   };
   if (!strcmp (ast->child[0]->ast_type, "AST_expression_opt_single")){
-    emit_code (ast, "\taddl\t$%d, %%esp\t# è¿”ã‚Šå€¤ã‚’å»ƒæ£„\n", 4);
-    frame_height -= 4;	/* ã‚¹ã‚¿ãƒƒã‚¯ãƒˆãƒƒãƒ—ãŒå»ƒæ£„ã•ã‚ŒãŸã®ã§ã€4æ¸›ã‚‰ã™ã€‚*/
+    emit_code (ast, "\taddl\t$%d, %%esp\t# ·µ¤ê‚¤òü—‰\n", 4);
+    frame_height -= 4;	/* ¥¹¥¿¥Ã¥¯¥È¥Ã¥×¤¬ü—‰¤µ¤ì¤¿¤Î¤Ç¡¢4œp¤é¤¹¡£*/
   };
 }
 
@@ -262,32 +262,32 @@ codegen_compound_statement (struct AST *ast)
 
   assert (!strcmp (ast->ast_type, "AST_compound_statement"));
 
-  codegen_begin_block (ast);	/* åå‰è¡¨ã®ä¿®æ­£ */
+  codegen_begin_block (ast);	/* ÃûÇ°±í¤ÎĞŞÕı */
 
-  /* æœ¬ä½“ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ« */
+  /* ±¾Ìå¤Î¥³¥ó¥Ñ¥¤¥ë */
   for (i = 0; i < ast->num_child; i++) {
     visit_AST (ast->child [i]);
   };
 
-  codegen_end_block ();	/* åå‰è¡¨ã®ä¿®æ­£ */
+  codegen_end_block ();	/* ÃûÇ°±í¤ÎĞŞÕı */
 }
 
 static void
 codegen_statement_if (struct AST *ast)
 {
-  int label_end   = label_num++; /* ifæ–‡ã®ã‚³ãƒ¼ãƒ‰ã®çµ‚ã‚ã‚Šã®ãƒ©ãƒ™ãƒ«ç•ªå·*/
+  int label_end   = label_num++; /* ifÎÄ¤Î¥³©`¥É¤Î½K¤ï¤ê¤Î¥é¥Ù¥ë·¬ºÅ*/
 
   assert (!strcmp (ast->ast_type, "AST_statement_if"));
 
-  /* æ¡ä»¶å¼ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«*/
+  /* Ìõ¼şÊ½¤Î¥³¥ó¥Ñ¥¤¥ë*/
   visit_AST(ast->child[0]);
 
-  emit_code (ast, "\tpopl\t%%eax\t#å¼ã®å€¤ã‚’%%eaxã¸\n");
-  emit_code (ast, "\tcmpl\t$0, %%eax\t#å¼ã®å€¤=0?\n");
-  emit_code (ast, "\tje\tL%d\t#0ãªã‚‰çµ‚ã‚ã‚Šã¾ã§ã‚¸ãƒ£ãƒ³ãƒ—\n", label_end);
+  emit_code (ast, "\tpopl\t%%eax\t#Ê½¤Î‚¤ò%%eax¤Ø\n");
+  emit_code (ast, "\tcmpl\t$0, %%eax\t#Ê½¤Î‚=0?\n");
+  emit_code (ast, "\tje\tL%d\t#0¤Ê¤é½K¤ï¤ê¤Ş¤Ç¥¸¥ã¥ó¥×\n", label_end);
   frame_height -= 4;
 
-  /* å®Ÿè¡Œæ–‡ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«*/
+  /* ŒgĞĞÎÄ¤Î¥³¥ó¥Ñ¥¤¥ë*/
   visit_AST(ast->child[1]);
 
   emit_code (ast, "L%d:\n", label_end);
@@ -296,26 +296,26 @@ codegen_statement_if (struct AST *ast)
 static void
 codegen_statement_ifelse (struct AST *ast)
 {
-  int label_else = label_num++; /* if-elseæ–‡ã®elseã®ã‚³ãƒ¼ãƒ‰ã®å§‹ã¾ã‚Š*/
-  int label_end  = label_num++; /* if-elseæ–‡ã®ã‚³ãƒ¼ãƒ‰ã®çµ‚ã‚ã‚Š*/
+  int label_else = label_num++; /* if-elseÎÄ¤Îelse¤Î¥³©`¥É¤ÎÊ¼¤Ş¤ê*/
+  int label_end  = label_num++; /* if-elseÎÄ¤Î¥³©`¥É¤Î½K¤ï¤ê*/
 
   assert (!strcmp (ast->ast_type, "AST_statement_ifelse"));
 
-  /* æ¡ä»¶å¼ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«*/
+  /* Ìõ¼şÊ½¤Î¥³¥ó¥Ñ¥¤¥ë*/
   visit_AST(ast->child[0]);
 
-  emit_code (ast, "\tpopl\t%%eax\t#å¼ã®å€¤ã‚’%%eaxã¸\n");
-  emit_code (ast, "\tcmpl\t$0, %%eax\t#å¼ã®å€¤=0?\n");
-  emit_code (ast, "\tje\tL%d\t#0ãªã‚‰elseéƒ¨ã«ã‚¸ãƒ£ãƒ³ãƒ—\n", label_else);
+  emit_code (ast, "\tpopl\t%%eax\t#Ê½¤Î‚¤ò%%eax¤Ø\n");
+  emit_code (ast, "\tcmpl\t$0, %%eax\t#Ê½¤Î‚=0?\n");
+  emit_code (ast, "\tje\tL%d\t#0¤Ê¤éelse²¿¤Ë¥¸¥ã¥ó¥×\n", label_else);
   frame_height -= 4;
 
-  /* æ¡ä»¶å¼ãŒtrueã®ã¨ãå®Ÿè¡Œã•ã‚Œã‚‹æ–‡(iféƒ¨)ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«*/
+  /* Ìõ¼şÊ½¤¬true¤Î¤È¤­ŒgĞĞ¤µ¤ì¤ëÎÄ(if²¿)¤Î¥³¥ó¥Ñ¥¤¥ë*/
   visit_AST(ast->child[1]);
-  emit_code (ast, "\tjmp\tL%d\t#elseéƒ¨ã‚’ã‚¹ã‚­ãƒƒãƒ—\n", label_end);
+  emit_code (ast, "\tjmp\tL%d\t#else²¿¤ò¥¹¥­¥Ã¥×\n", label_end);
 
-  emit_code (ast, "L%d:\n", label_else); /* elseéƒ¨ã®ãƒ©ãƒ™ãƒ«*/
+  emit_code (ast, "L%d:\n", label_else); /* else²¿¤Î¥é¥Ù¥ë*/
 
-  /* æ¡ä»¶å¼ãŒfalseã®ã¨ãå®Ÿè¡Œã•ã‚Œã‚‹æ–‡(elseéƒ¨)ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«*/
+  /* Ìõ¼şÊ½¤¬false¤Î¤È¤­ŒgĞĞ¤µ¤ì¤ëÎÄ(else²¿)¤Î¥³¥ó¥Ñ¥¤¥ë*/
   visit_AST(ast->child[2]);
 
   emit_code (ast, "L%d:\n", label_end);
@@ -324,25 +324,25 @@ codegen_statement_ifelse (struct AST *ast)
 static void
 codegen_statement_while (struct AST *ast)
 {
-  int label_begin = label_num++; /* whileæ–‡ã®ã‚³ãƒ¼ãƒ‰ã®ã¯ã˜ã‚ã®ãƒ©ãƒ™ãƒ«ç•ªå· */
-  int label_end   = label_num++; /* whileæ–‡ã®ã‚³ãƒ¼ãƒ‰ã®ãŠã‚ã‚Šã®ãƒ©ãƒ™ãƒ«ç•ªå· */
+  int label_begin = label_num++; /* whileÎÄ¤Î¥³©`¥É¤Î¤Ï¤¸¤á¤Î¥é¥Ù¥ë·¬ºÅ */
+  int label_end   = label_num++; /* whileÎÄ¤Î¥³©`¥É¤Î¤ª¤ï¤ê¤Î¥é¥Ù¥ë·¬ºÅ */
 
   assert (!strcmp (ast->ast_type, "AST_statement_while"));
 
   emit_code (ast, "L%d:\n", label_begin);
 
-  /* æ¡ä»¶å¼ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ« */
+  /* Ìõ¼şÊ½¤Î¥³¥ó¥Ñ¥¤¥ë */
   visit_AST(ast->child[0]);
 
-  emit_code (ast, "\tpopl\t%%eax\t#å¼ã®å€¤ã‚’%%eaxã¸\n");
-  emit_code (ast, "\tcmpl\t$0, %%eax\t#å¼ã®å€¤=0?\n");
-  emit_code (ast, "\tje\tL%d\t#0ãªã‚‰ãƒ«ãƒ¼ãƒ—ã‹ã‚‰å‡ºã‚‹\n", label_end);
-  frame_height -= 4; /* æ¡ä»¶æ–‡ã®çµæœãŒç ´æ£„ã•ã‚ŒãŸ */
+  emit_code (ast, "\tpopl\t%%eax\t#Ê½¤Î‚¤ò%%eax¤Ø\n");
+  emit_code (ast, "\tcmpl\t$0, %%eax\t#Ê½¤Î‚=0?\n");
+  emit_code (ast, "\tje\tL%d\t#0¤Ê¤é¥ë©`¥×¤«¤é³ö¤ë\n", label_end);
+  frame_height -= 4; /* Ìõ¼şÎÄ¤Î½Y¹û¤¬ÆÆ—‰¤µ¤ì¤¿ */
 
-  /* å®Ÿè¡Œæ–‡ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ« */
+  /* ŒgĞĞÎÄ¤Î¥³¥ó¥Ñ¥¤¥ë */
   visit_AST(ast->child[1]);
 
-  emit_code (ast, "\tjmp\tL%d\t#æ¡ä»¶åˆ¤å®šã¸æˆ»ã‚‹\n", label_begin);
+  emit_code (ast, "\tjmp\tL%d\t#Ìõ¼şÅĞ¶¨¤Ø‘ø¤ë\n", label_begin);
 
   emit_code (ast, "L%d:\n", label_end);
 }
@@ -360,14 +360,31 @@ codegen_expression_id (struct AST *ast)
 
   switch (symbol->name_space) {
   case NS_LOCAL:
-    break;
+    switch (symbol->type->kind) {
+    case TYPE_KIND_PRIM:
+      emit_code (ast, "\tpushl\t-%d(%%ebp)\n", symbol->offset + 4);
+    case TYPE_KIND_POINTER:
+      break;
+    case default:
+      assert(0);
+      break;
+    }
   case NS_ARG:
-    break;
+    switch (symbol->type->kind) {
+    case TYPE_KIND_PRIM:
+      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset);
+      break;
+    case TYPE_KIND_POINTER:
+      break;
+    case default:
+      assert(0);
+      break;
+    }
   case NS_GLOBAL:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
       emit_code (ast, "\tpushl\t_%s\n", id);
-			frame_height += 4;	/* ã‚¹ã‚¿ãƒƒã‚¯ã«å¤‰æ•°ã®å€¤ãŒç©ã¾ã‚ŒãŸ */
+			frame_height += 4;	/* ¥¹¥¿¥Ã¥¯¤Ë‰äÊı¤Î‚¤¬·e¤Ş¤ì¤¿ */
       break;
     case TYPE_KIND_POINTER:
       break;
@@ -394,7 +411,7 @@ codegen_expression_intchar (struct AST *ast)
           || !strcmp (ast->ast_type, "AST_expression_char"));
   
   emit_code (ast, "\tpushl\t$%d\n", ast->u.int_val);
-  frame_height += 4;	/* ã‚¹ã‚¿ãƒƒã‚¯ã«å³å€¤ãŒç©ã¾ã‚ŒãŸ */
+  frame_height += 4;	/* ¥¹¥¿¥Ã¥¯¤Ë¼´‚¤¬·e¤Ş¤ì¤¿ */
 }
 
 static void
@@ -406,7 +423,7 @@ codegen_expression_string (struct AST *ast)
   
   string = string_lookup(ast->u.id);
   emit_code (ast, "\tpushl\t$L%s\n", string->label);
-  frame_height += 4;	/* ã‚¹ã‚¿ãƒƒã‚¯ã«stringã®ã‚ã‚‹ã‚¢ãƒ‰ãƒ¬ã‚¹ãŒç©ã¾ã‚ŒãŸ */
+  frame_height += 4;	/* ¥¹¥¿¥Ã¥¯¤Ëstring¤Î¤¢¤ë¥¢¥É¥ì¥¹¤¬·e¤Ş¤ì¤¿ */
 }
 
 static void
@@ -414,12 +431,12 @@ codegen_expression_funcall (struct AST *ast)
 {
   int i;
   int fh;
-  int padding; /* å‘¼ã³å‡ºã—æ™‚%espãŒ16ãƒã‚¤ãƒˆå¢ƒç•Œã®ãŸã‚ã€æŒ¿å…¥ã™ã‚‹paddingã®å¤§ãã• */
+  int padding; /* ºô¤Ó³ö¤·•r%esp¤¬16¥Ğ¥¤¥È¾³½ç¤Î¤¿¤á¡¢’·Èë¤¹¤ëpadding¤Î´ó¤­¤µ */
 
   assert (!strcmp (ast->ast_type, "AST_expression_funcall1")
           || !strcmp (ast->ast_type, "AST_expression_funcall2"));
 
-  /*  æŒ¿å…¥ã™ã‚‹paddingã®å¤§ãã•ã®è¨ˆç®—ã—ã€paddingã‚’ç©ã‚€ */
+  /*  ’·Èë¤¹¤ëpadding¤Î´ó¤­¤µ¤ÎÓ‹Ëã¤·¡¢padding¤ò·e¤à */
   if (!strcmp (ast->ast_type, "AST_expression_funcall1")) {
     fh = (frame_height + ast->child[1]->u.arg_size) % 16;
   } else {
@@ -431,28 +448,28 @@ codegen_expression_funcall (struct AST *ast)
     padding = 16 - fh;
   };
   if (padding != 0) {
-    emit_code (ast, "\tsubl\t$%d, %%esp\t# paddingã‚’ç©ã‚€\n", padding);
+    emit_code (ast, "\tsubl\t$%d, %%esp\t# padding¤ò·e¤à\n", padding);
     frame_height += padding;
   };
   
-  /* å¼•æ•°ã®å€¤ã‚’ç©ã‚“ã§ã‹ã‚‰ã€é–¢æ•°å‘¼ã³å‡ºã— */
+  /* ÒıÊı¤Î‚¤ò·e¤ó¤Ç¤«¤é¡¢évÊıºô¤Ó³ö¤· */
   for (i = ast->num_child - 1; i >= 0 ; i--) {
     visit_AST (ast->child [i]);
   };
   
-  /* å¼•æ•°ã¨paddingã‚’æ¨ã¦ã‚‹ */
+  /* ÒıÊı¤Èpadding¤ò’Î¤Æ¤ë */
   if (!strcmp (ast->ast_type, "AST_expression_funcall1") 
       && ast->child[1]->u.arg_size != 0) {
-    emit_code (ast, "\taddl\t$%d, %%esp\t# å¼•æ•°ã‚’æ¨ã¦ã‚‹\n", ast->child[1]->u.arg_size); 
+    emit_code (ast, "\taddl\t$%d, %%esp\t# ÒıÊı¤ò’Î¤Æ¤ë\n", ast->child[1]->u.arg_size); 
     frame_height -= ast->child[1]->u.arg_size;
   };
   if (padding != 0) {
-    emit_code (ast, "\taddl\t$%d, %%esp\t# paddingã‚’å»ƒæ£„\n", padding); 
+    emit_code (ast, "\taddl\t$%d, %%esp\t# padding¤òü—‰\n", padding); 
     frame_height -= padding;
   };
   
-  /* è¿”ã‚Šå€¤ã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ä¹—ã›ã‚‹ */
-  emit_code (ast, "\tpushl\t%%eax\t# è¿”ã‚Šå€¤ã‚’ç©ã‚€\n");
+  /* ·µ¤ê‚¤ò¥¹¥¿¥Ã¥¯¤Ë\¤»¤ë */
+  emit_code (ast, "\tpushl\t%%eax\t# ·µ¤ê‚¤ò·e¤à\n");
   frame_height += 4;
 }
 
@@ -467,13 +484,28 @@ codegen_expression_assign (struct AST *ast)
   id = ast->child[0]->child[0]->u.id;
   symbol = sym_lookup (id);
   
-  /* å³è¾ºå€¤ã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ç©ã‚€ */
+  /* ÓÒŞx‚¤ò¥¹¥¿¥Ã¥¯¤Ë·e¤à */
   visit_AST (ast->child[1]);
   
-  /* å·¦è¾ºå€¤ã®ã‚¢ãƒ‰ãƒ¬ã‚¹ã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ç©ã‚€ */
-  emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
+  /* ×óŞx‚¤Î¥¢¥É¥ì¥¹¤ò¥¹¥¿¥Ã¥¯¤Ë·e¤à */
+  switch(symbol->name_space){
+    case NS_LOCAL:
+      emit_code (ast, "\tleal\t-%d(%%ebp), %%eax\n", symbol->offset + 4);
+      emit_code (ast, "\tpushl\t%%eax\n");
+      break;
+    case NS_ARG:
+      emit_code (ast, "\tleal\t%d(%%ebp), %%eax\n", symbol->offset);
+      emit_code (ast, "\tpushl\t%%eax\n");
+      break;
+    case NS_GLOBAL:
+      emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
+      break;
+    case default:
+      assert(0);
+      break;
+  }
   
-  /* ä»£å…¥ é€£ç¶šä»£å…¥å¼ã®ãŸã‚ã«å³è¾ºå€¤ã¯ã‚¹ã‚¿ãƒƒã‚¯ãƒˆãƒƒãƒ—ã«æ®‹ã™ */
+  /* ´úÈë ßB¾A´úÈëÊ½¤Î¤¿¤á¤ËÓÒŞx‚¤Ï¥¹¥¿¥Ã¥¯¥È¥Ã¥×¤Ë²Ğ¤¹ */
   emit_code (ast, "\tpopl\t%%eax\n");
   emit_code (ast, "\tmovl\t0(%%esp),%%ecx\n");
   emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
@@ -491,10 +523,10 @@ static void codegen_expression_lor (struct AST *ast)
 		visit_AST (ast->child[i]);
 		emit_code (ast, "\tpopl\t%%eax\n");
 		frame_height -= 4;
-		emit_code (ast, "\ttestl\t%%eax, %%eax\t#è‡ªåˆ†è‡ªèº«ã¨ANDã‚’ã¨ã‚‹\n");
-		emit_code (ast, "\tjne\tL%d\t#0ã§ãªã‘ã‚Œã°çµæœã¯1(true)\n", label1);
+		emit_code (ast, "\ttestl\t%%eax, %%eax\t#×Ô·Ö×ÔÉí¤ÈAND¤ò¤È¤ë\n");
+		emit_code (ast, "\tjne\tL%d\t#0¤Ç¤Ê¤±¤ì¤Ğ½Y¹û¤Ï1(true)\n", label1);
 	}
-	emit_code (ast, "\tpushl\t$0\t#ã©ã¡ã‚‰ã‚‚0ãªã‚‰çµæœã¯0(false)\n");
+	emit_code (ast, "\tpushl\t$0\t#¤É¤Á¤é¤â0¤Ê¤é½Y¹û¤Ï0(false)\n");
 	emit_code (ast, "\tjmp\tL%d\n", label2);
 	emit_code (ast, "L%d:\n", label1);
 	emit_code (ast, "\tpushl\t$1\n");
@@ -515,10 +547,10 @@ static void codegen_expression_land (struct AST *ast)
 		visit_AST (ast->child[i]);
 		emit_code (ast, "\tpopl\t%%eax\n");
 		frame_height -= 4;
-		emit_code (ast, "\ttestl\t%%eax, %%eax\t#è‡ªåˆ†è‡ªèº«ã¨ANDã‚’ã¨ã‚‹\n");
-		emit_code (ast, "\tje\tL%d\t#0ãªã‚‰çµæœã¯0(false)\n", label1);
+		emit_code (ast, "\ttestl\t%%eax, %%eax\t#×Ô·Ö×ÔÉí¤ÈAND¤ò¤È¤ë\n");
+		emit_code (ast, "\tje\tL%d\t#0¤Ê¤é½Y¹û¤Ï0(false)\n", label1);
 	}
-	emit_code (ast, "\tpushl\t$1\t#ã©ã¡ã‚‰ã‚‚0ã§ãªã‘ã‚Œã°çµæœã¯1(true)\n");
+	emit_code (ast, "\tpushl\t$1\t#¤É¤Á¤é¤â0¤Ç¤Ê¤±¤ì¤Ğ½Y¹û¤Ï1(true)\n");
 	emit_code (ast, "\tjmp\tL%d\n", label2);
 	emit_code (ast, "L%d:\n", label1);
 	emit_code (ast, "\tpushl\t$0\n");
@@ -539,12 +571,12 @@ static void codegen_expression_eq (struct AST *ast)
 
   emit_code (ast, "\tpopl\t%%ecx\n");
   emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tcmpl\t%%ecx, %%eax\t#æ¯”è¼ƒ\n");
-  emit_code (ast, "\tsete\t%%al\t#æ¯”è¼ƒçµæœã‚’%%alã«ä»£å…¥\n");
-  emit_code (ast, "\tmovzbl\t%%al, %%eax\t#%%elã‚’ã‚¼ãƒ­æ‹¡å¼µã—ã¦%%eaxã¸\n");
+  emit_code (ast, "\tcmpl\t%%ecx, %%eax\t#±Èİ^\n");
+  emit_code (ast, "\tsete\t%%al\t#±Èİ^½Y¹û¤ò%%al¤Ë´úÈë\n");
+  emit_code (ast, "\tmovzbl\t%%al, %%eax\t#%%el¤ò¥¼¥í’ˆˆ¤·¤Æ%%eax¤Ø\n");
   emit_code (ast, "\tpushl\t%%eax\n");
 
-  frame_height -= 4; /* 2å›pop(-8)å¾Œ,çµæœã‚’ç©ã‚€(+4) */
+  frame_height -= 4; /* 2»Øpop(-8)áá,½Y¹û¤ò·e¤à(+4) */
 }
 
 static void
@@ -562,15 +594,15 @@ codegen_expression_less (struct AST *ast)
 
   emit_code (ast, "\tpopl\t%%ecx\n");
   emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tcmpl\t%%ecx, %%eax\t#æ¯”è¼ƒ\n");
+  emit_code (ast, "\tcmpl\t%%ecx, %%eax\t#±Èİ^\n");
   emit_code (ast, "\tjl\tL%d\n", label1);
-  emit_code (ast, "\tpushl\t$0\t#å½ã®å ´åˆ\n");
+  emit_code (ast, "\tpushl\t$0\t#‚Î¤ÎˆöºÏ\n");
   emit_code (ast, "\tjmp\tL%d\n", label2);
   emit_code (ast, "L%d:\n" ,label1);
-  emit_code (ast, "\tpushl\t$1\t#çœŸã®å ´åˆ\n");
+  emit_code (ast, "\tpushl\t$1\t#Õæ¤ÎˆöºÏ\n");
   emit_code (ast, "L%d:\n", label2);
 
-  frame_height -= 4; /* 2å›pop(-8)å¾Œ,çµæœã‚’ç©ã‚€(+4) */
+  frame_height -= 4; /* 2»Øpop(-8)áá,½Y¹û¤ò·e¤à(+4) */
 }
 
 static void
@@ -586,10 +618,10 @@ codegen_expression_add (struct AST *ast)
 
   emit_code (ast, "\tpopl\t%%ecx\n");
   emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\taddl\t%%ecx, %%eax\t#åŠ ç®—\n");
-  emit_code (ast, "\tpushl\t%%eax\t#çµæœã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ç©ã‚€\n");
+  emit_code (ast, "\taddl\t%%ecx, %%eax\t#¼ÓËã\n");
+  emit_code (ast, "\tpushl\t%%eax\t#½Y¹û¤ò¥¹¥¿¥Ã¥¯¤Ë·e¤à\n");
 
-  frame_height -= 4; /* 2å›pop(-8)å¾Œ,çµæœã‚’ç©ã‚€(+4) */
+  frame_height -= 4; /* 2»Øpop(-8)áá,½Y¹û¤ò·e¤à(+4) */
   
 }
 
@@ -606,10 +638,10 @@ codegen_expression_sub (struct AST *ast)
 
   emit_code (ast, "\tpopl\t%%ecx\n");
   emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tsubl\t%%ecx, %%eax\t#æ¸›ç®—\n");
-  emit_code (ast, "\tpushl\t%%eax\t#çµæœã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ç©ã‚€\n");
+  emit_code (ast, "\tsubl\t%%ecx, %%eax\t#œpËã\n");
+  emit_code (ast, "\tpushl\t%%eax\t#½Y¹û¤ò¥¹¥¿¥Ã¥¯¤Ë·e¤à\n");
 
-  frame_height -= 4; /* 2å›pop(-8)å¾Œ,çµæœã‚’ç©ã‚€(+4) */
+  frame_height -= 4; /* 2»Øpop(-8)áá,½Y¹û¤ò·e¤à(+4) */
   
 }
 
@@ -625,10 +657,10 @@ static void codegen_expression_mul (struct AST *ast)
 
   emit_code (ast, "\tpopl\t%%ecx\n");
   emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\timull\t%%ecx, %%eax\t#ä¹—ç®—\n");
-  emit_code (ast, "\tpushl\t%%eax\t#çµæœã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ç©ã‚€\n");
+  emit_code (ast, "\timull\t%%ecx, %%eax\t#\Ëã\n");
+  emit_code (ast, "\tpushl\t%%eax\t#½Y¹û¤ò¥¹¥¿¥Ã¥¯¤Ë·e¤à\n");
 
-  frame_height -= 4; /* 2å›pop(-8)å¾Œ,çµæœã‚’ç©ã‚€(+4) */
+  frame_height -= 4; /* 2»Øpop(-8)áá,½Y¹û¤ò·e¤à(+4) */
 }
 static void codegen_expression_div (struct AST *ast)
 {
@@ -642,11 +674,11 @@ static void codegen_expression_div (struct AST *ast)
 
   emit_code (ast, "\tpopl\t%%ecx\n");
   emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tcltd\t#ç¬¦å·æ‹¡å¼µ\n");
-  emit_code (ast, "\tidivl\t%%ecx\t#é™¤ç®—\n");
-  emit_code (ast, "\tpushl\t%%eax\t#çµæœã‚’ã‚¹ã‚¿ãƒƒã‚¯ã«ç©ã‚€\n");
+  emit_code (ast, "\tcltd\t#·ûºÅ’ˆˆ\n");
+  emit_code (ast, "\tidivl\t%%ecx\t#³ıËã\n");
+  emit_code (ast, "\tpushl\t%%eax\t#½Y¹û¤ò¥¹¥¿¥Ã¥¯¤Ë·e¤à\n");
 
-  frame_height -= 4; /* 2å›pop(-8)å¾Œ,çµæœã‚’ç©ã‚€(+4) */
+  frame_height -= 4; /* 2»Øpop(-8)áá,½Y¹û¤ò·e¤à(+4) */
 }
 
 static void
@@ -656,7 +688,7 @@ codegen_argument_expression_list_pair (struct AST *ast)
   
   assert (!strcmp (ast->ast_type, "AST_argument_expression_list_pair"));
   
-  /* å¼•æ•°ã®å€¤ã‚’é€†é †ã«ã‚¹ã‚¿ãƒƒã‚¯ã«ç©ã‚€ãŸã‚ã€é€†ã«å­ä¾›ã‚’ãŸã©ã‚‹ */
+  /* ÒıÊı¤Î‚¤òÄæí˜¤Ë¥¹¥¿¥Ã¥¯¤Ë·e¤à¤¿¤á¡¢Äæ¤Ë×Ó¹©¤ò¤¿¤É¤ë */
   for (i = ast->num_child - 1; i >= 0 ; i--) {
     visit_AST (ast->child [i]);
   };
