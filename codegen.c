@@ -210,7 +210,6 @@ codegen_function_definition (struct AST *ast)
   int i;
 
   assert (!strcmp (ast->ast_type, "AST_function_definition"));
-  
   codegen_begin_function (ast);	/* 名前表の修正 */
   frame_height = 4;	/* 呼び出されたときは、%eipのみスタックにあるため、大きさは4 */
   if (sym_table.string != NULL) 
@@ -223,7 +222,7 @@ codegen_function_definition (struct AST *ast)
   emit_code (ast, "\tmovl\t%%esp, %%ebp\n");
 
   /* 局所変数の領域確保 */
-  emit_code (ast, "\tsubl\t%d, %%esp\t# 局所変数の領域を確保\n", ast.u.func.total_local_size);
+  emit_code (ast, "\tsubl\t%d, %%esp\t# 局所変数の領域を確保\n", ast->u.func.total_local_size);
   
   /* 本体のコンパイル */
   for (i = 0; i < ast->num_child; i++) {
@@ -362,6 +361,14 @@ codegen_expression_id (struct AST *ast)
   case NS_LOCAL:
     break;
   case NS_ARG:
+          switch () {
+              case <#constant#>:
+                  <#statements#>
+                  break;
+                  
+              default:
+                  break;
+          }
     break;
   case NS_GLOBAL:
     switch (symbol->type->kind) {
