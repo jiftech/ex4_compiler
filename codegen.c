@@ -225,7 +225,7 @@ codegen_function_definition (struct AST *ast)
   emit_code (ast, "\tmovl\t%%esp, %%ebp\n");
 
   /* 局所変数の領域確保 */
-  emit_code (ast, "\tsubl\t%d, %%esp\t# 局所変数の領域を確保\n", ast->u.func.total_local_size);
+  emit_code (ast, "\tsubl\t$%d, %%esp\t# 局所変数の領域を確保\n", ast->u.func.total_local_size);
   frame_height += ast->u.func.total_local_size;
   
   /* 本体のコンパイル */
@@ -351,7 +351,7 @@ codegen_statement_while (struct AST *ast)
 }
 
 static void
-codegen_statement_return (struct  AST *ast)
+codegen_statement_return (struct AST *ast)
 {
   assert (!strcmp (ast->ast_type, "AST_statement_return"));
 
@@ -359,10 +359,11 @@ codegen_statement_return (struct  AST *ast)
   visit_AST(ast->child[0]);
 
   /* 返り値がある場合は返り値を%eaxへ */
-  if(!strcmp (ast->child[0]->ast_type, "AST_expression_opt_single"){
-    emit_code (ast, "\tpopl\t%%eax\t#返り値を%%eaxへ");
+  if(!strcmp (ast->child[0]->ast_type, "AST_expression_opt_single")){
+    emit_code (ast, "\tpopl\t%%eax\t#返り値を%%eaxへ\n");
+    frame_height -= 4;
   }
-  emit_code (ast, "\tmovl\tL.XCC.RE.%s:\n", funcname);
+  emit_code (ast, "\tjmp\tL.XCC.RE.%s\n", funcname);
 }
 
 static void
@@ -393,7 +394,7 @@ codegen_expression_id (struct AST *ast)
   case NS_ARG:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
-      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset);
+      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset + 4);
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_POINTER:
@@ -517,7 +518,7 @@ codegen_expression_assign (struct AST *ast)
       emit_code (ast, "\tpushl\t%%eax\n");
       break;
     case NS_ARG:
-      emit_code (ast, "\tleal\t%d(%%ebp), %%eax\n", symbol->offset);
+      emit_code (ast, "\tleal\t%d(%%ebp), %%eax\n", symbol->offset + 4);
       emit_code (ast, "\tpushl\t%%eax\n");
       break;
     case NS_GLOBAL:
@@ -537,49 +538,49 @@ codegen_expression_assign (struct AST *ast)
 static void codegen_expression_lor (struct AST *ast)
 {
   int i;
-	int label1 = label_num++;
-	int label2 = label_num++;
-
-	assert (!strcmp (ast->ast_type, "AST_expression_lor"));
-
-	for(i = 0; i < ast->num_child; i++){
-		visit_AST (ast->child[i]);
-		emit_code (ast, "\tpopl\t%%eax\n");
-		frame_height -= 4;
-		emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
-		emit_code (ast, "\tjne\tL%d\t#0でなければ結果は1(true)\n", label1);
-	}
-	emit_code (ast, "\tpushl\t$0\t#どちらも0なら結果は0(false)\n");
-	emit_code (ast, "\tjmp\tL%d\n", label2);
-	emit_code (ast, "L%d:\n", label1);
-	emit_code (ast, "\tpushl\t$1\n");
-	emit_code (ast, "L%d:\n", label2);
-
-	frame_height += 4;
+  int label1 = label_num++;
+  int label2 = label_num++;
+  
+  assert (!strcmp (ast->ast_type, "AST_expression_lor"));
+  
+  for(i = 0; i < ast->num_child; i++){
+    visit_AST (ast->child[i]);
+    emit_code (ast, "\tpopl\t%%eax\n");
+    frame_height -= 4;
+    emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
+    emit_code (ast, "\tjne\tL%d\t#0でなければ結果は1(true)\n", label1);
+  }
+  emit_code (ast, "\tpushl\t$0\t#どちらも0なら結果は0(false)\n");
+  emit_code (ast, "\tjmp\tL%d\n", label2);
+  emit_code (ast, "L%d:\n", label1);
+  emit_code (ast, "\tpushl\t$1\n");
+  emit_code (ast, "L%d:\n", label2);
+  
+  frame_height += 4;
 }
 
 static void codegen_expression_land (struct AST *ast)
 {
-	int i;
-	int label1 = label_num++;
-	int label2 = label_num++;
-
-	assert (!strcmp (ast->ast_type, "AST_expression_land"));
-
-	for(i = 0; i < ast->num_child; i++){
-		visit_AST (ast->child[i]);
-		emit_code (ast, "\tpopl\t%%eax\n");
-		frame_height -= 4;
-		emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
-		emit_code (ast, "\tje\tL%d\t#0なら結果は0(false)\n", label1);
-	}
-	emit_code (ast, "\tpushl\t$1\t#どちらも0でなければ結果は1(true)\n");
-	emit_code (ast, "\tjmp\tL%d\n", label2);
-	emit_code (ast, "L%d:\n", label1);
-	emit_code (ast, "\tpushl\t$0\n");
-	emit_code (ast, "L%d:\n", label2);
-
-	frame_height += 4;
+  int i;
+  int label1 = label_num++;
+  int label2 = label_num++;
+  
+  assert (!strcmp (ast->ast_type, "AST_expression_land"));
+  
+  for(i = 0; i < ast->num_child; i++){
+    visit_AST (ast->child[i]);
+    emit_code (ast, "\tpopl\t%%eax\n");
+    frame_height -= 4;
+    emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
+    emit_code (ast, "\tje\tL%d\t#0なら結果は0(false)\n", label1);
+  }
+  emit_code (ast, "\tpushl\t$1\t#どちらも0でなければ結果は1(true)\n");
+  emit_code (ast, "\tjmp\tL%d\n", label2);
+  emit_code (ast, "L%d:\n", label1);
+  emit_code (ast, "\tpushl\t$0\n");
+  emit_code (ast, "L%d:\n", label2);
+  
+  frame_height += 4;
 }
 
 static void codegen_expression_eq (struct AST *ast)
