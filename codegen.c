@@ -394,7 +394,7 @@ codegen_expression_id (struct AST *ast)
   case NS_ARG:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
-      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset + 4);
+      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset + 8);
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_POINTER:
