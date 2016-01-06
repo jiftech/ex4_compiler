@@ -210,7 +210,8 @@ codegen_string_def (struct AST *ast, struct String *string)
 static void
 codegen_function_definition (struct AST *ast)
 {
-  int i;
+  int i
+  int l_size = ast->u.func.total_local_size;
 
   assert (!strcmp (ast->ast_type, "AST_function_definition"));
   codegen_begin_function (ast);	/* 名前表の修正 */
@@ -225,8 +226,10 @@ codegen_function_definition (struct AST *ast)
   emit_code (ast, "\tmovl\t%%esp, %%ebp\n");
 
   /* 局所変数の領域確保 */
-  emit_code (ast, "\tsubl\t$%d, %%esp\t# 局所変数の領域を確保\n", ast->u.func.total_local_size);
-  frame_height += ast->u.func.total_local_size;
+  if (l_size != 0){
+    emit_code (ast, "\tsubl\t$%d, %%esp\t# 局所変数の領域を確保\n", l_size);
+    frame_height += l_size;
+  }
   
   /* 本体のコンパイル */
   for (i = 0; i < ast->num_child; i++) {
