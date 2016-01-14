@@ -210,7 +210,7 @@ codegen_string_def (struct AST *ast, struct String *string)
 static void
 codegen_function_definition (struct AST *ast)
 {
-  int i
+  int i;
   int l_size = ast->u.func.total_local_size;
 
   assert (!strcmp (ast->ast_type, "AST_function_definition"));
