@@ -41,6 +41,7 @@ static void codegen_expression_intchar (struct AST *ast);
 static void codegen_expression_string (struct AST *ast);
 static void codegen_expression_funcall (struct AST *ast);
 static void codegen_expression_assign (struct AST *ast);
+static void codegen_left_value(struct AST *ast);
 static void codegen_expression_lor (struct AST *ast);
 static void codegen_expression_land (struct AST *ast);
 static void codegen_expression_eq (struct AST *ast);
@@ -49,6 +50,7 @@ static void codegen_expression_add (struct AST *ast);
 static void codegen_expression_sub (struct AST *ast);
 static void codegen_expression_mul (struct AST *ast);
 static void codegen_expression_div (struct AST *ast);
+static void codegen_expression_unary (struct AST *ast);
 static void codegen_argument_expression_list_pair (struct AST *ast);
 
 /* ---------------------------------------------------------------------- */
@@ -186,6 +188,8 @@ visit_AST (struct AST *ast)
     codegen_expression_mul (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_div")) {
     codegen_expression_div (ast); 
+  } else if (!strcmp (ast->ast_type, "AST_expression_unary")) {
+    codegen_expression_unary (ast); 
   } else if (!strcmp (ast->ast_type, "AST_argument_expression_list_pair")) {
     codegen_argument_expression_list_pair (ast);
   } else {
@@ -388,6 +392,8 @@ codegen_expression_id (struct AST *ast)
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_POINTER:
+      emit_code (ast, "\tpushl\t-%d(%%ebp)\n", symbol->offset + 4);
+      frame_height += 4;  /* スタックにポインタアドレス値が積まれた*/
       break;
     default:
       assert(0);
@@ -401,6 +407,8 @@ codegen_expression_id (struct AST *ast)
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_POINTER:
+      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset + 8);
+      frame_height += 4;  /* スタックにポインタアドレス値が積まれた*/
       break;
     default:
       assert(0);
@@ -414,6 +422,8 @@ codegen_expression_id (struct AST *ast)
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_POINTER:
+      emit_code (ast, "\tpushl\t_%s\n", id);
+      frame_height += 4;  /* スタックに変数の値が積まれた */
       break;
     case TYPE_KIND_FUNCTION:
       emit_code (ast, "\tcall\t_%s\n", id);
@@ -503,18 +513,34 @@ codegen_expression_funcall (struct AST *ast)
 static void
 codegen_expression_assign (struct AST *ast)
 {
-  char *id;
-  struct Symbol *symbol;
-  
   assert(!strcmp (ast->ast_type, "AST_expression_assign"));
-  
-  id = ast->child[0]->child[0]->u.id;
-  symbol = sym_lookup (id);
-  
+
   /* 右辺値をスタックに積む */
   visit_AST (ast->child[1]);
   
   /* 左辺値のアドレスをスタックに積む */
+  if(!strcmp(ast->child[0]->ast_type, "AST_expression_id")){ /* 左辺が変数 */
+    codegen_left_value(ast->child[0]);
+  } 
+  else{ /* 左辺が変数でない: *(アドレス) */
+    /* &ptrはコンパイルエラーに */
+    assert(strcmp(ast->child[0]->child[0]->ast_type, "AST_unary_operator_address"));
+    visit_AST(ast->child[0]);
+  }
+  /* 代入 連続代入式のために右辺値はスタックトップに残す */
+  emit_code (ast, "\tpopl\t%%eax\n");
+  emit_code (ast, "\tmovl\t0(%%esp),%%ecx\n");
+  emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
+}
+
+/* 変数の左辺値を求める関数(代入式と&[変数]のコンパイルに用いる) */
+static void
+codegen_left_value(struct AST *ast)
+{
+  assert(!strcmp(ast->ast_type, "AST_expression_id"));
+
+  char *id = ast->child[0]->u.id;
+  struct Symbol *symbol = sym_lookup(id);
   switch(symbol->name_space){
     case NS_LOCAL:
       emit_code (ast, "\tleal\t-%d(%%ebp), %%eax\n", symbol->offset + 4);
@@ -531,14 +557,10 @@ codegen_expression_assign (struct AST *ast)
       assert(0);
       break;
   }
-  
-  /* 代入 連続代入式のために右辺値はスタックトップに残す */
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tmovl\t0(%%esp),%%ecx\n");
-  emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
 }
 
-static void codegen_expression_lor (struct AST *ast)
+static void
+codegen_expression_lor (struct AST *ast)
 {
   int i;
   int label1 = label_num++;
@@ -636,6 +658,8 @@ static void
 codegen_expression_add (struct AST *ast)
 {
   int i;
+  int left_is_ptr  = ast->child[0]->type->kind == TYPE_KIND_POINTER;
+  int right_is_ptr = ast->child[1]->type->kind == TYPE_KIND_POINTER;
 
   assert (!strcmp (ast->ast_type, "AST_expression_add"));
 
@@ -643,19 +667,38 @@ codegen_expression_add (struct AST *ast)
     visit_AST (ast->child[i]);
   }
 
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
+  if(left_is_ptr){
+    if(right_is_ptr){
+      assert(0);  /* コンパイルエラー */
+    }
+    else{
+      emit_code (ast, "\tpopl\t%%ecx\n");
+      emit_code (ast, "\tsall\t%%ecx, $2\t#4倍\n");
+      emit_code (ast, "\tpopl\t%%eax\n");
+    }
+  }
+  else{ /* left is not ptr */
+    if(right_is_ptr){
+      emit_code (ast, "\tpopl\t%%ecx\n");
+      emit_code (ast, "\tpopl\t%%eax\n");
+      emit_code (ast, "\tsall\t%%eax, $2\t#4倍\n");
+    }
+    else{
+      emit_code (ast, "\tpopl\t%%ecx\n");
+      emit_code (ast, "\tpopl\t%%eax\n");
+    }
+  }
   emit_code (ast, "\taddl\t%%ecx, %%eax\t#加算\n");
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
-
   frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
-  
 }
 
 static void
 codegen_expression_sub (struct AST *ast)
 {
   int i;
+  int left_is_ptr  = ast->child[0]->type->kind == TYPE_KIND_POINTER;
+  int right_is_ptr = ast->child[1]->type->kind == TYPE_KIND_POINTER;
 
   assert (!strcmp (ast->ast_type, "AST_expression_sub"));
 
@@ -663,13 +706,36 @@ codegen_expression_sub (struct AST *ast)
     visit_AST (ast->child[i]);
   }
 
-  emit_code (ast, "\tpopl\t%%ecx\n");
-  emit_code (ast, "\tpopl\t%%eax\n");
-  emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
+  if(left_is_ptr){
+    if(right_is_ptr){
+      /* ptr - ptr */
+      emit_code (ast, "\tpopl\t%%ecx\n");
+      emit_code (ast, "\tpopl\t%%eax\n");
+      emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
+      emit_code (ast, "\tsarl\t%%eax, $2\t#4で割る\n");
+    }
+    else{
+      /* ptr - prim */
+      emit_code (ast, "\tpopl\t%%ecx\n");
+      emit_code (ast, "\tsall\t%%ecx, $2\t#4倍\n");
+      emit_code (ast, "\tpopl\t%%eax\n");
+      emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
+    }
+  }
+  else{ /* left is not ptr */
+    if(right_is_ptr){
+      /* prim - ptr */
+      assert(0); /* コンパイルエラー */
+    }
+    else{ 
+      /* prim - prim */
+    emit_code (ast, "\tpopl\t%%ecx\n");
+    emit_code (ast, "\tpopl\t%%eax\n");
+    emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
+    }
+  }
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
-
   frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
-  
 }
 
 static void codegen_expression_mul (struct AST *ast)
@@ -707,7 +773,54 @@ static void codegen_expression_div (struct AST *ast)
 
   frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
 }
+static void
+codegen_expression_unary (struct AST *ast)
+{
+  assert (!strcmp(ast->ast_type, "AST_expression_unary"));
 
+  char *un_ope = ast->child[0]->ast_type;
+  int label1;
+  int label2;
+
+  /* &[変数]: 変数のアドレスを求める */
+  if(!strcmp(un_ope, "AST_unary_operator_address")){
+    codegen_left_value(ast->child[1]);
+  }
+  /* その他の単項演算子の場合 */
+  else{
+    // 式のコンパイル
+    visit_AST(ast->child[1]);
+  
+    // 演算子の種類によって式の結果を操作
+    if(!strcmp(un_ope, "AST_unary_operator_deref")){
+      /* *(式): ポインタの先を参照 */
+      emit_code(ast, "\tpopl\t%%eax\t#ポインタのアドレス値を%%eaxへ\n");
+      emit_code(ast, "\tmovl\t0(%%eax), %%eax\t#ポインタの先の値を%%eaxへ\n");
+      emit_code(ast, "\tpushl\t%%eax\t#ポインタの先の値をスタックに積む\n");
+    } 
+    else if(!strcmp(un_ope, "AST_unary_operator_plus")){
+      /* +(式): 符号そのまま(何もしない) */
+    }
+    else if(!strcmp(un_ope, "AST_unary_operator_minus")){
+      /* -(式): 符号反転 */
+      emit_code(ast, "\tnegl\t#符号反転\n");
+    } 
+    else if(!strcmp(un_ope, "AST_unary_operator_negative")){
+      /* !(式): 式の値が0なら1,0以外なら1にする */
+      label1 = label_num++;
+      label2 = label_num++;
+  
+      emit_code (ast, "\tpopl\t%%eax\n");
+      emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
+      emit_code (ast, "\tje\tL%d\t#0ならジャンプ\n", label1);
+      emit_code (ast, "\tpushl\t$0\t#1(0以外)なら0に\n");
+      emit_code (ast, "\tjmp\tL%d\n", label2);
+      emit_code (ast, "L%d:\n", label1);
+      emit_code (ast, "\tpushl\t$1\t#0なら1に\n");
+      emit_code (ast, "L%d:\n", label2);
+    }
+  }
+}
 static void
 codegen_argument_expression_list_pair (struct AST *ast)
 {
