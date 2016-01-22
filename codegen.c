@@ -545,13 +545,16 @@ codegen_left_value(struct AST *ast)
     case NS_LOCAL:
       emit_code (ast, "\tleal\t-%d(%%ebp), %%eax\n", symbol->offset + 4);
       emit_code (ast, "\tpushl\t%%eax\n");
+      frame_height += 4;
       break;
     case NS_ARG:
       emit_code (ast, "\tleal\t%d(%%ebp), %%eax\n", symbol->offset + 4);
       emit_code (ast, "\tpushl\t%%eax\n");
+      frame_height += 4;
       break;
     case NS_GLOBAL:
       emit_code (ast, "\tpushl\t$_%s\n", symbol->name);
+      frame_height += 4;
       break;
     default:
       assert(0);
