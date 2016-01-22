@@ -525,7 +525,8 @@ codegen_expression_assign (struct AST *ast)
   else{ /* 左辺が変数でない: *(アドレス) */
     /* &ptrはコンパイルエラーに */
     assert(strcmp(ast->child[0]->child[0]->ast_type, "AST_unary_operator_address"));
-    visit_AST(ast->child[0]);
+    visit_AST(ast->child[0]->child[1]);
+    frame_height -= 4;
   }
   /* 代入 連続代入式のために右辺値はスタックトップに残す */
   emit_code (ast, "\tpopl\t%%eax\n");
@@ -676,7 +677,7 @@ codegen_expression_add (struct AST *ast)
     }
     else{
       emit_code (ast, "\tpopl\t%%ecx\n");
-      emit_code (ast, "\tsall\t%%ecx, $2\t#4倍\n");
+      emit_code (ast, "\tsall\t$2, %%ecx\t#4倍\n");
       emit_code (ast, "\tpopl\t%%eax\n");
     }
   }
@@ -684,7 +685,7 @@ codegen_expression_add (struct AST *ast)
     if(right_is_ptr){
       emit_code (ast, "\tpopl\t%%ecx\n");
       emit_code (ast, "\tpopl\t%%eax\n");
-      emit_code (ast, "\tsall\t%%eax, $2\t#4倍\n");
+      emit_code (ast, "\tsall\t$2, %%eax\t#4倍\n");
     }
     else{
       emit_code (ast, "\tpopl\t%%ecx\n");
@@ -715,12 +716,12 @@ codegen_expression_sub (struct AST *ast)
       emit_code (ast, "\tpopl\t%%ecx\n");
       emit_code (ast, "\tpopl\t%%eax\n");
       emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
-      emit_code (ast, "\tsarl\t%%eax, $2\t#4で割る\n");
+      emit_code (ast, "\tsarl\t$2, %%eax\t#4で割る\n");
     }
     else{
       /* ptr - prim */
       emit_code (ast, "\tpopl\t%%ecx\n");
-      emit_code (ast, "\tsall\t%%ecx, $2\t#4倍\n");
+      emit_code (ast, "\tsall\t$2, %%ecx\t#4倍\n");
       emit_code (ast, "\tpopl\t%%eax\n");
       emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
     }
@@ -806,7 +807,7 @@ codegen_expression_unary (struct AST *ast)
     }
     else if(!strcmp(un_ope, "AST_unary_operator_minus")){
       /* -(式): 符号反転 */
-      emit_code(ast, "\tnegl\t#符号反転\n");
+      emit_code(ast, "\tnegl\t0(%%esp)\t#符号反転\n");
     } 
     else if(!strcmp(un_ope, "AST_unary_operator_negative")){
       /* !(式): 式の値が0なら1,0以外なら1にする */
