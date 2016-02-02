@@ -1,3 +1,8 @@
+/* TODO 調べること
+  * *(p+i)という式の型は?
+  * char型の局所変数や引数のoffsetは?
+*/
+
 /*
   $Id: codegen-skel.c,v 1.3 2009/03/27 09:36:54 gondow Exp gondow $
  */
@@ -48,6 +53,7 @@ static void codegen_expression_eq (struct AST *ast);
 static void codegen_expression_less (struct AST *ast);
 static void codegen_expression_add (struct AST *ast);
 static void codegen_expression_sub (struct AST *ast);
+static int  shift_count (struct AST *ast);
 static void codegen_expression_mul (struct AST *ast);
 static void codegen_expression_div (struct AST *ast);
 static void codegen_expression_unary (struct AST *ast);
@@ -62,7 +68,7 @@ emit_code (struct AST *ast, char *fmt, ...)
   va_start (argp, fmt);
   vfprintf (xcc_out, fmt, argp);
   va_end   (argp);
-  
+
   /* the argument 'ast' can be used for debug purpose */
 }
 
@@ -101,9 +107,9 @@ void
 codegen (void)
 {
   emit_code (ast_root, "\t.file   \"%s\"\n", filename);
-  
+
   codegen_global ();
-  
+
   emit_code (ast_root, "\t.ident  \"XCC skeleton ($Revision: 1.3 $)\"\n");
 }
 /* ---------------------------------------------------------------------- */
@@ -130,7 +136,7 @@ codegen_global_func (struct Symbol *sym)
 {
   assert (!strcmp (sym->ast->ast_type, "AST_function_definition")
           || !strcmp (sym->ast->ast_type, "AST_declaration"));
-  
+
   if (!strcmp (sym->ast->ast_type, "AST_function_definition")) {
     funcname = sym->name;
     codegen_function_definition (sym->ast);
@@ -141,13 +147,15 @@ codegen_global_func (struct Symbol *sym)
 static void
 codegen_global_var (struct Symbol *sym)
 {
-	emit_code(sym->ast, "\t.comm\t_%s,4,2\n", sym->name); 
+  /* sym->type.sizeは型のデータのバイト数 */
+	emit_code(sym->ast, "\t.comm\t_%s,%d,2\n", sym->name, sym->type->size);
 }
+
 static void
 visit_AST (struct AST *ast)
 {
   int i;
-  
+
   if (!strcmp (ast->ast_type, "AST_statement_exp")) {
     codegen_statement_exp (ast);
   } else if (!strcmp (ast->ast_type, "AST_compound_statement")) {
@@ -187,9 +195,9 @@ visit_AST (struct AST *ast)
   } else if (!strcmp (ast->ast_type, "AST_expression_mul")) {
     codegen_expression_mul (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_div")) {
-    codegen_expression_div (ast); 
+    codegen_expression_div (ast);
   } else if (!strcmp (ast->ast_type, "AST_expression_unary")) {
-    codegen_expression_unary (ast); 
+    codegen_expression_unary (ast);
   } else if (!strcmp (ast->ast_type, "AST_argument_expression_list_pair")) {
     codegen_argument_expression_list_pair (ast);
   } else {
@@ -203,7 +211,7 @@ static void
 codegen_string_def (struct AST *ast, struct String *string)
 {
   struct String *p;
-  
+
   emit_code (ast, "\t.cstring\n");
   for (p = string; p != NULL; p = p->next) {
     emit_code (ast, "L%s:\n", p->label);
@@ -220,7 +228,7 @@ codegen_function_definition (struct AST *ast)
   assert (!strcmp (ast->ast_type, "AST_function_definition"));
   codegen_begin_function (ast);	/* 名前表の修正 */
   frame_height = 4;	/* 呼び出されたときは、%eipのみスタックにあるため、大きさは4 */
-  if (sym_table.string != NULL) 
+  if (sym_table.string != NULL)
     codegen_string_def (ast, sym_table.string);
   emit_code (ast, "\t.text\n");
   emit_code (ast, "\t.globl\t_%s\n", funcname);
@@ -234,17 +242,17 @@ codegen_function_definition (struct AST *ast)
     emit_code (ast, "\tsubl\t$%d, %%esp\t# 局所変数の領域を確保\n", l_size);
     frame_height += l_size;
   }
-  
+
   /* 本体のコンパイル */
   for (i = 0; i < ast->num_child; i++) {
     visit_AST (ast->child [i]);
   };
-  
+
   emit_code (ast, "L.XCC.RE.%s:\n", funcname);
   emit_code (ast, "\tmovl\t%%ebp, %%esp\t# スタックフレームを除去\n");
   emit_code (ast, "\tpopl\t%%ebp\n");
   emit_code (ast, "\tret\n");
-  
+
   codegen_end_function (); /* 名前表の修正 */
 }
 
@@ -252,7 +260,7 @@ static void
 codegen_statement_exp (struct AST *ast)
 {
   int i;
-  
+
   assert (!strcmp (ast->ast_type, "AST_statement_exp"));
 
   /* 本体のコンパイル */
@@ -388,9 +396,17 @@ codegen_expression_id (struct AST *ast)
   case NS_LOCAL:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
-      emit_code (ast, "\tpushl\t-%d(%%ebp)\n", symbol->offset + 4);
+      if(symbol->type->u.t_prim.ptype == PRIM_TYPE_CHAR){
+        /* char型の局所変数はint型に変換してプッシュ */
+        emit_code (ast, "\tmovsbl\t-%d(%%ebp), %%eax\n", symbol->offset + 4);
+        emit_code (ast, "\tpushl\t%%eax\n");
+      }
+      else{
+        emit_code (ast, "\tpushl\t-%d(%%ebp)\n", symbol->offset + 4);
+      }
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
+
     case TYPE_KIND_POINTER:
       emit_code (ast, "\tpushl\t-%d(%%ebp)\n", symbol->offset + 4);
       frame_height += 4;  /* スタックにポインタアドレス値が積まれた*/
@@ -400,12 +416,21 @@ codegen_expression_id (struct AST *ast)
       break;
     }
     break;
+
   case NS_ARG:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
-      emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset + 8);
+      if(symbol->type->u.t_prim.ptype == PRIM_TYPE_CHAR){
+        /* char型の引数はint型に変換してプッシュ */
+        emit_code (ast, "\tmovsbl\t%d(%%ebp), %%eax\n", symbol->offset + 8);
+        emit_code (ast, "\tpushl\t%%eax\n");
+      }
+      else {
+        emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset + 8);
+      }
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
+
     case TYPE_KIND_POINTER:
       emit_code (ast, "\tpushl\t%d(%%ebp)\n", symbol->offset + 8);
       frame_height += 4;  /* スタックにポインタアドレス値が積まれた*/
@@ -415,16 +440,26 @@ codegen_expression_id (struct AST *ast)
       break;
     }
     break;
+
   case NS_GLOBAL:
     switch (symbol->type->kind) {
     case TYPE_KIND_PRIM:
-      emit_code (ast, "\tpushl\t_%s\n", id);
+      if(symbol->type->u.t_prim.ptype == PRIM_TYPE_CHAR){
+        /* char型の大域変数はint型に変換してプッシュ */
+        emit_code (ast, "\tmovsbl\t_%s, %%eax\n", id);
+        emit_code (ast, "\tpushl\t%%eax\n");
+      }
+      else{
+        emit_code (ast, "\tpushl\t_%s\n", id);
+      }
       frame_height += 4;	/* スタックに変数の値が積まれた */
       break;
+
     case TYPE_KIND_POINTER:
       emit_code (ast, "\tpushl\t_%s\n", id);
       frame_height += 4;  /* スタックに変数の値が積まれた */
       break;
+
     case TYPE_KIND_FUNCTION:
       emit_code (ast, "\tcall\t_%s\n", id);
       break;
@@ -433,8 +468,10 @@ codegen_expression_id (struct AST *ast)
       break;
     };
     break;
+
   case NS_LABEL:
     break;
+
   default:
     assert (0);
     break;
@@ -446,7 +483,7 @@ codegen_expression_intchar (struct AST *ast)
 {
   assert (!strcmp (ast->ast_type, "AST_expression_int")
           || !strcmp (ast->ast_type, "AST_expression_char"));
-  
+
   emit_code (ast, "\tpushl\t$%d\n", ast->u.int_val);
   frame_height += 4;	/* スタックに即値が積まれた */
 }
@@ -457,7 +494,7 @@ codegen_expression_string (struct AST *ast)
   struct String *string;
 
   assert (!strcmp (ast->ast_type, "AST_expression_string"));
-  
+
   string = string_lookup(ast->u.id);
   emit_code (ast, "\tpushl\t$L%s\n", string->label);
   frame_height += 4;	/* スタックにstringのあるアドレスが積まれた */
@@ -488,23 +525,23 @@ codegen_expression_funcall (struct AST *ast)
     emit_code (ast, "\tsubl\t$%d, %%esp\t# paddingを積む\n", padding);
     frame_height += padding;
   };
-  
+
   /* 引数の値を積んでから、関数呼び出し */
   for (i = ast->num_child - 1; i >= 0 ; i--) {
     visit_AST (ast->child [i]);
   };
-  
+
   /* 引数とpaddingを捨てる */
-  if (!strcmp (ast->ast_type, "AST_expression_funcall1") 
+  if (!strcmp (ast->ast_type, "AST_expression_funcall1")
       && ast->child[1]->u.arg_size != 0) {
-    emit_code (ast, "\taddl\t$%d, %%esp\t# 引数を捨てる\n", ast->child[1]->u.arg_size); 
+    emit_code (ast, "\taddl\t$%d, %%esp\t# 引数を捨てる\n", ast->child[1]->u.arg_size);
     frame_height -= ast->child[1]->u.arg_size;
   };
   if (padding != 0) {
-    emit_code (ast, "\taddl\t$%d, %%esp\t# paddingを廃棄\n", padding); 
+    emit_code (ast, "\taddl\t$%d, %%esp\t# paddingを廃棄\n", padding);
     frame_height -= padding;
   };
-  
+
   /* 返り値をスタックに乗せる */
   emit_code (ast, "\tpushl\t%%eax\t# 返り値を積む\n");
   frame_height += 4;
@@ -517,11 +554,11 @@ codegen_expression_assign (struct AST *ast)
 
   /* 右辺値をスタックに積む */
   visit_AST (ast->child[1]);
-  
+
   /* 左辺値のアドレスをスタックに積む */
   if(!strcmp(ast->child[0]->ast_type, "AST_expression_id")){ /* 左辺が変数 */
     codegen_left_value(ast->child[0]);
-  } 
+  }
   else{ /* 左辺が変数でない: *(アドレス) */
     /* &ptrはコンパイルエラーに */
     assert(strcmp(ast->child[0]->child[0]->ast_type, "AST_unary_operator_address"));
@@ -566,9 +603,9 @@ codegen_expression_lor (struct AST *ast)
   int i;
   int label1 = label_num++;
   int label2 = label_num++;
-  
+
   assert (!strcmp (ast->ast_type, "AST_expression_lor"));
-  
+
   for(i = 0; i < ast->num_child; i++){
     visit_AST (ast->child[i]);
     emit_code (ast, "\tpopl\t%%eax\n");
@@ -581,7 +618,7 @@ codegen_expression_lor (struct AST *ast)
   emit_code (ast, "L%d:\n", label1);
   emit_code (ast, "\tpushl\t$1\n");
   emit_code (ast, "L%d:\n", label2);
-  
+
   frame_height += 4;
 }
 
@@ -590,9 +627,9 @@ static void codegen_expression_land (struct AST *ast)
   int i;
   int label1 = label_num++;
   int label2 = label_num++;
-  
+
   assert (!strcmp (ast->ast_type, "AST_expression_land"));
-  
+
   for(i = 0; i < ast->num_child; i++){
     visit_AST (ast->child[i]);
     emit_code (ast, "\tpopl\t%%eax\n");
@@ -605,7 +642,7 @@ static void codegen_expression_land (struct AST *ast)
   emit_code (ast, "L%d:\n", label1);
   emit_code (ast, "\tpushl\t$0\n");
   emit_code (ast, "L%d:\n", label2);
-  
+
   frame_height += 4;
 }
 
@@ -637,7 +674,7 @@ codegen_expression_less (struct AST *ast)
   int label2 = label_num++;
 
   assert (!strcmp (ast->ast_type, "AST_expression_less"));
-  
+
   for(i = 0; i < ast->num_child; i++){
     visit_AST (ast->child[i]);
   }
@@ -661,6 +698,7 @@ codegen_expression_add (struct AST *ast)
   int i;
   int left_is_ptr  = ast->child[0]->type->kind == TYPE_KIND_POINTER;
   int right_is_ptr = ast->child[1]->type->kind == TYPE_KIND_POINTER;
+  int sc;
 
   assert (!strcmp (ast->ast_type, "AST_expression_add"));
 
@@ -670,21 +708,27 @@ codegen_expression_add (struct AST *ast)
 
   if(left_is_ptr){
     if(right_is_ptr){
+      /* ptr + ptr */
       assert(0);  /* コンパイルエラー */
     }
     else{
+      /* ptr + prim */
+      sc = shift_count(ast->child[0]);
       emit_code (ast, "\tpopl\t%%ecx\n");
-      emit_code (ast, "\tsall\t$2, %%ecx\t#4倍\n");
+      emit_code (ast, "\tsall\t$%d, %%ecx\n", sc);
       emit_code (ast, "\tpopl\t%%eax\n");
     }
   }
   else{ /* left is not ptr */
     if(right_is_ptr){
+      /* prim + ptr */
+      sc = shift_count(ast->child[1]);
       emit_code (ast, "\tpopl\t%%ecx\n");
       emit_code (ast, "\tpopl\t%%eax\n");
-      emit_code (ast, "\tsall\t$2, %%eax\t#4倍\n");
+      emit_code (ast, "\tsall\t$%d, %%eax\n", sc);
     }
     else{
+      /* prim + prim */
       emit_code (ast, "\tpopl\t%%ecx\n");
       emit_code (ast, "\tpopl\t%%eax\n");
     }
@@ -700,6 +744,7 @@ codegen_expression_sub (struct AST *ast)
   int i;
   int left_is_ptr  = ast->child[0]->type->kind == TYPE_KIND_POINTER;
   int right_is_ptr = ast->child[1]->type->kind == TYPE_KIND_POINTER;
+  int sc;
 
   assert (!strcmp (ast->ast_type, "AST_expression_sub"));
 
@@ -710,15 +755,24 @@ codegen_expression_sub (struct AST *ast)
   if(left_is_ptr){
     if(right_is_ptr){
       /* ptr - ptr */
-      emit_code (ast, "\tpopl\t%%ecx\n");
-      emit_code (ast, "\tpopl\t%%eax\n");
-      emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
-      emit_code (ast, "\tsarl\t$2, %%eax\t#4で割る\n");
+      if(ast->child[0]->type->u.t_pointer.type->size 
+	 == ast->child[1]->type->u.t_pointer.type->size){
+	sc = shift_count(ast->child[0]);
+        emit_code (ast, "\tpopl\t%%ecx\n");
+        emit_code (ast, "\tpopl\t%%eax\n");
+        emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
+        emit_code (ast, "\tsarl\t$%d, %%eax\n", sc);
+      }
+      else{
+        /* ポインタの先の型のサイズが異なる場合はエラー */
+        assert(0);
+      }
     }
     else{
       /* ptr - prim */
+      sc = shift_count(ast->child[0]);
       emit_code (ast, "\tpopl\t%%ecx\n");
-      emit_code (ast, "\tsall\t$2, %%ecx\t#4倍\n");
+      emit_code (ast, "\tsall\t$%d, %%ecx\n", sc);
       emit_code (ast, "\tpopl\t%%eax\n");
       emit_code (ast, "\tsubl\t%%ecx, %%eax\t#減算\n");
     }
@@ -728,7 +782,7 @@ codegen_expression_sub (struct AST *ast)
       /* prim - ptr */
       assert(0); /* コンパイルエラー */
     }
-    else{ 
+    else{
       /* prim - prim */
     emit_code (ast, "\tpopl\t%%ecx\n");
     emit_code (ast, "\tpopl\t%%eax\n");
@@ -737,6 +791,17 @@ codegen_expression_sub (struct AST *ast)
   }
   emit_code (ast, "\tpushl\t%%eax\t#結果をスタックに積む\n");
   frame_height -= 4; /* 2回pop(-8)後,結果を積む(+4) */
+}
+
+/* 型のサイズからシフト回数を求める */
+static int shift_count (struct AST *ast)
+{
+  int i;
+  int size = ast->type->u.t_pointer.type->size;
+  for(i = 0; size > 1; i++){
+    size /= 2;
+  }
+  return i;
 }
 
 static void codegen_expression_mul (struct AST *ast)
@@ -791,26 +856,26 @@ codegen_expression_unary (struct AST *ast)
   else{
     // 式のコンパイル
     visit_AST(ast->child[1]);
-  
+
     // 演算子の種類によって式の結果を操作
     if(!strcmp(un_ope, "AST_unary_operator_deref")){
       /* *(式): ポインタの先を参照 */
       emit_code(ast, "\tpopl\t%%eax\t#ポインタのアドレス値を%%eaxへ\n");
       emit_code(ast, "\tmovl\t0(%%eax), %%eax\t#ポインタの先の値を%%eaxへ\n");
       emit_code(ast, "\tpushl\t%%eax\t#ポインタの先の値をスタックに積む\n");
-    } 
+    }
     else if(!strcmp(un_ope, "AST_unary_operator_plus")){
       /* +(式): 符号そのまま(何もしない) */
     }
     else if(!strcmp(un_ope, "AST_unary_operator_minus")){
       /* -(式): 符号反転 */
       emit_code(ast, "\tnegl\t0(%%esp)\t#符号反転\n");
-    } 
+    }
     else if(!strcmp(un_ope, "AST_unary_operator_negative")){
       /* !(式): 式の値が0なら1,0以外なら1にする */
       label1 = label_num++;
       label2 = label_num++;
-  
+
       emit_code (ast, "\tpopl\t%%eax\n");
       emit_code (ast, "\ttestl\t%%eax, %%eax\t#自分自身とANDをとる\n");
       emit_code (ast, "\tje\tL%d\t#0ならジャンプ\n", label1);
@@ -826,9 +891,9 @@ static void
 codegen_argument_expression_list_pair (struct AST *ast)
 {
   int i;
-  
+
   assert (!strcmp (ast->ast_type, "AST_argument_expression_list_pair"));
-  
+
   /* 引数の値を逆順にスタックに積むため、逆に子供をたどる */
   for (i = ast->num_child - 1; i >= 0 ; i--) {
     visit_AST (ast->child [i]);
