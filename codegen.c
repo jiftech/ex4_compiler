@@ -147,8 +147,8 @@ codegen_global_func (struct Symbol *sym)
 static void
 codegen_global_var (struct Symbol *sym)
 {
-  /* sym->type.sizeは型のデータのバイト数 */
-	emit_code(sym->ast, "\t.comm\t_%s,%d,2\n", sym->name, sym->type->size);
+  /* sym->type->sizeは型のデータのバイト数 */
+  emit_code(sym->ast, "\t.comm\t_%s,%d,2\n", sym->name, sym->type->size);
 }
 
 static void
@@ -566,7 +566,7 @@ codegen_expression_assign (struct AST *ast)
     frame_height -= 4;
   }
   /* 代入 連続代入式のために右辺値はスタックトップに残す */
-  emit_code (ast, "\tpopl\t%%eax\n");
+  emit_code (ast, "\tpopl\t%%eax\n")
   emit_code (ast, "\tmovl\t0(%%esp),%%ecx\n");
   emit_code (ast, "\tmovl\t%%ecx,0(%%eax)\n");
 }
