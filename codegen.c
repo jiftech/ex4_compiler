@@ -778,8 +778,13 @@ codegen_expression_sub (struct AST *ast)
   if(left_is_ptr){
     if(right_is_ptr){
       /* ptr - ptr */
+<<<<<<< HEAD
       if(ast->child[0]->type->u.t_pointer.type->size
 	       == ast->child[1]->type->u.t_pointer.type->size){
+=======
+      if(ast->child[0]->type->u.t_pointer.type->size 
+	 == ast->child[1]->type->u.t_pointer.type->size){
+>>>>>>> 05c7d4a842d28fdfe1c26232521d786bc1b196f8
 	sc = shift_count(ast->child[0]);
         emit_code (ast, "\tpopl\t%%ecx\n");
         emit_code (ast, "\tpopl\t%%eax\n");
