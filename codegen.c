@@ -118,7 +118,7 @@ codegen_global (void)
     if (sym->type->kind == TYPE_KIND_FUNCTION) {
       codegen_global_func (sym);
     }
-		else if (sym->type->kind == TYPE_KIND_PRIM) {
+		else {
 			codegen_global_var (sym);
 		}
     sym = sym->next;
