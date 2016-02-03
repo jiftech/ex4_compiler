@@ -391,6 +391,7 @@ static void codegen_statement_goto (struct AST *ast)
   id = ast->child[0]->u.id;
   emit_code (ast, "\tjmp\t%s\n", id);
 }
+
 static void codegen_statement_label (struct AST *ast)
 {
   char *id;
